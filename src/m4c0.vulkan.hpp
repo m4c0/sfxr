@@ -11,6 +11,7 @@
 #include "m4c0/vulkan/full_extent_viewport.hpp"
 #include "m4c0/vulkan/pipeline.hpp"
 #include "m4c0/vulkan/pipeline_layout.hpp"
+#include "m4c0/vulkan/push_constants.hpp"
 #include "m4c0/vulkan/shader_module.hpp"
 
 #include <array>
@@ -95,9 +96,14 @@ class pipeline {
   pipeline_layout m_pipeline_layout;
   pipe m_pipeline;
 
+  struct consts {
+    float w, h;
+  } m_consts {};
+
 public:
-  explicit pipeline(const m4c0::fuji::device_context * ld)
-    : m_pipeline_layout(pipeline_layout::builder().build())
+  explicit pipeline(const m4c0::fuji::device_context * ld, unsigned w, unsigned h)
+    : m_pipeline_layout(
+        pipeline_layout::builder().add_vertex_push_constant_with_size_and_offset(sizeof(consts), 0).build())
     , m_pipeline(pipe::builder()
                      .with_pipeline_layout(&m_pipeline_layout)
                      .with_render_pass(ld->render_pass())
@@ -105,11 +111,16 @@ public:
                      .add_vec2_attribute_with_bind_and_offset(0, 0)
                      .add_vertex_stage(shader(main_vert_spv, main_vert_spv_len), "main")
                      .add_fragment_stage(shader(main_frag_spv, main_frag_spv_len), "main")
-                     .build()) {
+                     .build())
+    , m_consts({ static_cast<float>(w), static_cast<float>(h) }) {
   }
 
   void build_secondary_command_buffer(VkCommandBuffer cb) {
     m4c0::vulkan::cmd::bind_pipeline(cb).with_pipeline(&m_pipeline).now();
+    m4c0::vulkan::cmd::push_constants(cb)
+        .with_data_from(&m_consts)
+        .with_pipeline_layout(&m_pipeline_layout)
+        .to_vertex_stage();
   }
 };
 
@@ -122,7 +133,7 @@ class objects : public m4c0::fuji::main_loop_listener {
 public:
   objects(const m4c0::fuji::device_context * ld, unsigned w, unsigned h)
     : m_viewport()
-    , m_pipeline(ld)
+    , m_pipeline(ld, w, h)
     , m_vtx_mem(ld)
     , m_clr_mem(ld, w, h) {
   }
