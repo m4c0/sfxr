@@ -7,6 +7,8 @@
 
 #ifdef WIN32
 #include "ddrawkit.h"
+#elif M4C0
+#include "m4c0.hpp"
 #else
 #include "sdlkit.h"
 #endif
@@ -19,6 +21,7 @@
 #include "DPInput.h"      // WIN32
 #include "fileselector.h" // WIN32
 #include "pa/portaudio.h"
+#elif M4C0
 #else
 #include "SDL.h"
 #endif
@@ -492,6 +495,7 @@ static int AudioCallback(
 
   return 0;
 }
+#elif M4C0
 #else
 // lets use SDL in stead
 static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
@@ -1055,6 +1059,7 @@ void ddkInit() {
       AudioCallback,
       NULL);
   Pa_StartStream(stream);
+#elif M4C0
 #else
   SDL_AudioSpec des;
   des.freq = 44100;

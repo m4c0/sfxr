@@ -1,0 +1,3 @@
+[submodule "m4c0-stl"]
+	path = m4c0-stl
+	url = git@github.com:m4c0/m4c0-stl.git
