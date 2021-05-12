@@ -1,5 +1,6 @@
 #pragma once
 
+#include "m4c0.ddk.hpp"
 #include "m4c0/fuji/device_context.hpp"
 #include "m4c0/fuji/main_loop.hpp"
 #include "m4c0/vulkan/bind_pipeline.hpp"
@@ -17,7 +18,9 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
+#include <thread>
 
 extern "C" {
 #include "main.frag.h"
@@ -46,7 +49,7 @@ class vtx_mem {
   };
 
   static constexpr const auto verts =
-      std::array { pos { -1, -1 }, pos { -1, 1 }, pos { 1, -1 }, pos { 1, -1 }, pos { -1, 1 }, pos { 1, 1 } };
+      std::array { pos { 0, 0 }, pos { 0, 1 }, pos { 1, 0 }, pos { 1, 0 }, pos { 0, 1 }, pos { 1, 1 } };
 
 public:
   explicit vtx_mem(const m4c0::fuji::device_context * ld)
@@ -85,12 +88,34 @@ class color_mem {
   };
   // static_assert(sizeof(instance) == sizeof(std::uint64_t));
 
+  class pixel_guard {
+    decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
+
+  public:
+    explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem) : m_guard(mem->map_all()) {
+      auto * ptr = m_guard.pointer<instance>();
+      write_pixel = [ptr, w](unsigned pos, unsigned rgba) {
+        std::int16_t x = pos % w;
+        std::int16_t y = pos / w;
+        ptr[pos] = instance { x, y, rgba }; // NOLINT
+      };
+    }
+  };
+
 public:
   color_mem(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
     : m_count(w * h)
     , m_buffer(buffer::create_vertex_buffer_with_size(m_count * sizeof(instance)))
     , m_memory(ld->create_host_memory(&m_buffer))
     , m_bind(&m_buffer, &m_memory) {
+
+    static std::unique_ptr<pixel_guard> guard;
+    lock = [m = &m_memory, w]() {
+      guard = std::make_unique<pixel_guard>(w, m);
+    };
+    unlock = []() {
+      guard.reset();
+    };
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) {
     m4c0::vulkan::cmd::bind_vertex_buffer(cb).with_buffer(&m_buffer).with_first_index(1).now();
@@ -172,21 +197,32 @@ public:
 class stuff : public m4c0::fuji::main_loop_listener {
   const m4c0::fuji::device_context * m_ctx;
   std::unique_ptr<objects> m_obj {};
+  std::mutex m_obj_mutex {};
 
 public:
   explicit stuff(const m4c0::fuji::device_context * ld) : m_ctx(ld) {
+    set_screen_size = [this](int w, int h) {
+      auto guard = std::lock_guard { m_obj_mutex };
+      m_obj = std::make_unique<objects>(m_ctx, w, h);
+      ddkpitch = w;
+    };
+    std::thread([]() {
+      ddkInit();
+      while (ddkCalcFrame()) {
+      }
+      ddkFree();
+    }).detach();
   }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
+    auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->build_primary_command_buffer(cb);
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) override {
+    auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->build_secondary_command_buffer(cb);
   }
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
+    auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->on_render_extent_change(e);
-  }
-
-  void create_objects(unsigned w, unsigned h) {
-    m_obj = std::make_unique<objects>(m_ctx, w, h);
   }
 };

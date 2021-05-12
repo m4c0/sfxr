@@ -7,7 +7,7 @@ project(sfxr
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(m4c0-stl)
 
-add_executable(sfxr src/main.cpp)
+add_executable(sfxr src/main.cpp src/m4c0.ddk.cpp)
 target_compile_definitions(sfxr PRIVATE M4C0)
 target_link_libraries(sfxr PRIVATE m4c0::fuji m4c0::vulkan)
 

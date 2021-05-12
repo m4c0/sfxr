@@ -1,12 +1,13 @@
 #pragma once
 
+#include "m4c0.ddk.hpp"
+
 #include <cstdint>
 #include <map>
 #include <thread>
 
 using DWORD = std::uint32_t;
 static constexpr const auto DDK_WINDOW = 0;
-static constexpr const auto ddkpitch = 320;
 static constexpr const auto hInstanceMain = 0;
 static constexpr const auto hWndMain = 0;
 
@@ -22,7 +23,24 @@ static bool mouse_right = false;      // NOLINT
 static bool mouse_leftclick = false;  // NOLINT
 static bool mouse_rightclick = false; // NOLINT
 
-static std::uint32_t * ddkscreen32; // NOLINT
+class pixel {
+  unsigned m_index;
+
+public:
+  explicit constexpr pixel(unsigned i) : m_index(i) {
+  }
+
+  pixel & operator=(std::uint32_t rgba) {
+    write_pixel(m_index, rgba);
+    return *this;
+  }
+};
+static class {
+public:
+  [[nodiscard]] pixel operator[](unsigned idx) noexcept {
+    return pixel { idx };
+  }
+} ddkscreen32; // NOLINT
 
 class DPInput {
 public:
@@ -55,8 +73,18 @@ static void Sleep(unsigned ms) {
 }
 
 static void ddkLock() {
+  lock();
 }
 static void ddkUnlock() {
+  unlock();
 }
-static void ddkSetMode(int width, int height, int bpp, int refreshrate, int fullscreen, const char * title) {
+
+static void ddkSetMode(
+    int width,
+    int height,
+    int /*bpp*/,
+    int /*refreshrate*/,
+    int /*fullscreen*/,
+    const char * /*title*/) {
+  set_screen_size(width, height);
 }
