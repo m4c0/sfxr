@@ -72,6 +72,12 @@ public:
   }
 };
 
+struct instance {
+  alignas(2) std::int16_t x, y;
+  std::uint32_t rgba;
+};
+static_assert(sizeof(instance) == sizeof(std::uint64_t));
+
 class color_mem {
   using buffer = m4c0::vulkan::buffer;
   using memory = m4c0::vulkan::device_memory;
@@ -82,43 +88,19 @@ class color_mem {
   memory m_memory;
   bind m_bind;
 
-  struct instance {
-    alignas(2) std::int16_t x, y;
-    std::uint32_t rgba;
-  };
-  // static_assert(sizeof(instance) == sizeof(std::uint64_t));
-
-  class pixel_guard {
-    decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
-
-  public:
-    explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem) : m_guard(mem->map_all()) {
-      auto * ptr = m_guard.pointer<instance>();
-      write_pixel = [ptr, w](unsigned pos, unsigned rgba) {
-        std::int16_t x = pos % w;
-        std::int16_t y = pos / w;
-        ptr[pos] = instance { x, y, rgba }; // NOLINT
-      };
-    }
-  };
-
 public:
   color_mem(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
     : m_count(w * h)
     , m_buffer(buffer::create_vertex_buffer_with_size(m_count * sizeof(instance)))
     , m_memory(ld->create_host_memory(&m_buffer))
     , m_bind(&m_buffer, &m_memory) {
-
-    static std::unique_ptr<pixel_guard> guard;
-    lock = [m = &m_memory, w]() {
-      guard = std::make_unique<pixel_guard>(w, m);
-    };
-    unlock = []() {
-      guard.reset();
-    };
   }
-  void build_secondary_command_buffer(VkCommandBuffer cb) {
+  void build_secondary_command_buffer(VkCommandBuffer cb) const {
     m4c0::vulkan::cmd::bind_vertex_buffer(cb).with_buffer(&m_buffer).with_first_index(1).now();
+  }
+
+  [[nodiscard]] constexpr auto * device_memory() noexcept {
+    return &m_memory;
   }
 
   [[nodiscard]] constexpr auto count() const noexcept {
@@ -167,27 +149,56 @@ public:
   }
 };
 
+class pixel_guard {
+  decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
+
+public:
+  explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem) : m_guard(mem->map_all()) {
+    auto * ptr = m_guard.pointer<instance>();
+    write_pixel = [ptr, w](unsigned pos, unsigned rgba) {
+      std::int16_t x = pos % w;
+      std::int16_t y = pos / w;
+      ptr[pos] = instance { x, y, rgba }; // NOLINT
+    };
+  }
+};
+
 class objects : public m4c0::fuji::main_loop_listener {
   m4c0::vulkan::tools::full_extent_viewport m_viewport;
   pipeline m_pipeline;
   vtx_mem m_vtx_mem;
-  color_mem m_clr_mem;
+  std::array<color_mem, 2> m_clr_mem;
+  unsigned m_width;
+  bool m_use_front = false;
 
 public:
-  objects(const m4c0::fuji::device_context * ld, unsigned w, unsigned h)
+  objects(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
     : m_viewport()
     , m_pipeline(ld, w, h)
     , m_vtx_mem(ld)
-    , m_clr_mem(ld, w, h) {
+    , m_clr_mem({ color_mem { ld, w, h }, color_mem { ld, w, h } })
+    , m_width(w) {
   }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) override {
+    auto & front = m_clr_mem.at(m_use_front ? 0 : 1);
+    auto & back = m_clr_mem.at(m_use_front ? 1 : 0);
     m_viewport.build_command_buffer(cb);
     m_pipeline.build_secondary_command_buffer(cb);
     m_vtx_mem.build_secondary_command_buffer(cb);
-    m_clr_mem.build_secondary_command_buffer(cb);
-    m4c0::vulkan::cmd::draw(cb).with_vertex_count(vtx_mem::count()).with_instance_count(m_clr_mem.count()).now();
+    front.build_secondary_command_buffer(cb);
+    m4c0::vulkan::cmd::draw(cb).with_vertex_count(vtx_mem::count()).with_instance_count(front.count()).now();
+
+    static std::unique_ptr<pixel_guard> guard;
+
+    lock = [m = back.device_memory(), w = m_width]() {
+      guard = std::make_unique<pixel_guard>(w, m);
+    };
+    unlock = [f = &m_use_front]() {
+      guard.reset();
+      *f = !*f;
+    };
   }
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
     m_viewport.extent() = e;
