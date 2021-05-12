@@ -91,15 +91,6 @@ public:
     , m_buffer(buffer::create_vertex_buffer_with_size(m_count * sizeof(instance)))
     , m_memory(ld->create_host_memory(&m_buffer))
     , m_bind(&m_buffer, &m_memory) {
-    auto guard = m_memory.map_all();
-    auto * ptr = guard.pointer<instance>();
-    for (int x = 0; x < w; x++) {
-      for (int y = 0; y < h; y++) {
-        *ptr++ = instance { static_cast<int16_t>(x - w / 2),
-                            static_cast<int16_t>(y - h / 2),
-                            static_cast<uint32_t>((x << 16) | (y << 8)) }; // NOLINT
-      }
-    }
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) {
     m4c0::vulkan::cmd::bind_vertex_buffer(cb).with_buffer(&m_buffer).with_first_index(1).now();
@@ -184,7 +175,6 @@ class stuff : public m4c0::fuji::main_loop_listener {
 
 public:
   explicit stuff(const m4c0::fuji::device_context * ld) : m_ctx(ld) {
-    create_objects(640, 480);
   }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
     if (m_obj) m_obj->build_primary_command_buffer(cb);
