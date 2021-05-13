@@ -206,24 +206,10 @@ public:
 };
 
 class stuff : public m4c0::fuji::main_loop_listener {
-  const m4c0::fuji::device_context * m_ctx;
   std::unique_ptr<objects> m_obj {};
   std::mutex m_obj_mutex {};
 
 public:
-  explicit stuff(const m4c0::fuji::device_context * ld) : m_ctx(ld) {
-    set_screen_size = [this](int w, int h) {
-      auto guard = std::lock_guard { m_obj_mutex };
-      m_obj = std::make_unique<objects>(m_ctx, w, h);
-      ddkpitch = w;
-    };
-    std::thread([]() {
-      ddkInit();
-      while (ddkCalcFrame()) {
-      }
-      ddkFree();
-    }).detach();
-  }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
     auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->build_primary_command_buffer(cb);
@@ -235,5 +221,32 @@ public:
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
     auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->on_render_extent_change(e);
+  }
+
+  void reset(const m4c0::fuji::device_context * ld, int w, int h) {
+    auto guard = std::lock_guard { m_obj_mutex };
+    m_obj = std::make_unique<objects>(ld, w, h);
+  }
+};
+
+class loop : public m4c0::fuji::main_loop {
+public:
+  void run_global(const m4c0::native_handles * nh) {
+    m4c0::fuji::device_context ld { "SFXR", nh };
+    stuff s;
+    listener() = &s;
+
+    set_screen_size = [s = &s, ld = &ld](int w, int h) {
+      s->reset(ld, w, h);
+      ddkpitch = w;
+    };
+    std::thread([] {
+      ddkInit();
+      while (ddkCalcFrame()) {
+      }
+      ddkFree();
+    }).detach();
+
+    run_device(&ld);
   }
 };

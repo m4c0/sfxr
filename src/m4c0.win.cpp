@@ -1,15 +1,15 @@
 #include "m4c0.vulkan.hpp"
 #include "m4c0/fuji/main_loop.hpp"
 #include "m4c0/fuji/main_loop_thread.hpp"
-#include "m4c0/vulkan/surface.win32.hpp"
+#include "m4c0/native_handles.win32.hpp"
 #include "m4c0/win/main.hpp"
 
 #include <tchar.h>
 #include <windows.h>
 
 LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
-  static class wnd_provider : public m4c0::vulkan::native_provider {
-    m4c0::fuji::main_loop_thread<m4c0::fuji::main_loop_with_stuff<stuff>> m_stuff {};
+  static class wnd_provider : public m4c0::native_handles {
+    m4c0::fuji::main_loop_thread<loop> m_stuff {};
     HWND m_hwnd;
 
   public:
@@ -23,7 +23,7 @@ LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPA
     }
 
     void start() {
-      m_stuff.start("SFXR", this);
+      m_stuff.start(this);
     }
     void stop() {
       m_stuff.stop();
