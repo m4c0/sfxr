@@ -2,6 +2,11 @@
 
 unsigned ddkpitch; // NOLINT
 
+std::atomic_int mouse_x;  // NOLINT
+std::atomic_int mouse_y;  // NOLINT
+std::atomic_int mouse_px; // NOLINT
+std::atomic_int mouse_py; // NOLINT
+
 std::function<void()> lock;   // NOLINT
 std::function<void()> unlock; // NOLINT
 

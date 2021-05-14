@@ -163,51 +163,80 @@ public:
   }
 };
 
+class dbl_buf {
+  std::array<color_mem, 2> m_clr_mem;
+  std::unique_ptr<pixel_guard> m_guard;
+  color_mem * m_front = &m_clr_mem.at(0);
+  color_mem * m_back = &m_clr_mem.at(1);
+  std::mutex m_mutex {};
+
+public:
+  dbl_buf(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
+    : m_clr_mem({ color_mem { ld, w, h }, color_mem { ld, w, h } }) {
+    lock = [this, w, h]() {
+      auto guard = std::lock_guard { m_mutex };
+      m_guard = std::make_unique<pixel_guard>(w, m_back->device_memory());
+    };
+    unlock = [this]() {
+      auto guard = std::lock_guard { m_mutex };
+      m_guard.reset();
+      std::swap(m_front, m_back);
+    };
+  }
+  void build_secondary_command_buffer(VkCommandBuffer cb) {
+    auto guard = std::lock_guard { m_mutex };
+    m_front->build_secondary_command_buffer(cb);
+  }
+
+  [[nodiscard]] auto count() {
+    auto guard = std::lock_guard { m_mutex };
+    return m_front->count();
+  }
+};
+
 class objects : public m4c0::fuji::main_loop_listener {
   m4c0::vulkan::tools::full_extent_viewport m_viewport;
   pipeline m_pipeline;
   vtx_mem m_vtx_mem;
-  std::array<color_mem, 2> m_clr_mem;
-  unsigned m_width;
-  bool m_use_front = false;
+  dbl_buf m_dbl_buf;
 
 public:
   objects(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
     : m_viewport()
     , m_pipeline(ld, w, h)
     , m_vtx_mem(ld)
-    , m_clr_mem({ color_mem { ld, w, h }, color_mem { ld, w, h } })
-    , m_width(w) {
+    , m_dbl_buf(ld, w, h) {
   }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) override {
-    auto & front = m_clr_mem.at(m_use_front ? 0 : 1);
-    auto & back = m_clr_mem.at(m_use_front ? 1 : 0);
     m_viewport.build_command_buffer(cb);
     m_pipeline.build_secondary_command_buffer(cb);
     m_vtx_mem.build_secondary_command_buffer(cb);
-    front.build_secondary_command_buffer(cb);
-    m4c0::vulkan::cmd::draw(cb).with_vertex_count(vtx_mem::count()).with_instance_count(front.count()).now();
+    m_dbl_buf.build_secondary_command_buffer(cb);
+    m4c0::vulkan::cmd::draw(cb).with_vertex_count(vtx_mem::count()).with_instance_count(m_dbl_buf.count()).now();
 
     static std::unique_ptr<pixel_guard> guard;
-
-    lock = [m = back.device_memory(), w = m_width]() {
-      guard = std::make_unique<pixel_guard>(w, m);
-    };
-    unlock = [f = &m_use_front]() {
-      guard.reset();
-      *f = !*f;
-    };
   }
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
     m_viewport.extent() = e;
   }
 };
 
+class native_stuff {
+public:
+  virtual void get_mouse_position(int * x, int * y) const = 0;
+};
+
 class stuff : public m4c0::fuji::main_loop_listener {
   std::unique_ptr<objects> m_obj {};
   std::mutex m_obj_mutex {};
+  m4c0::vulkan::extent_2d m_render_extent;
+  m4c0::vulkan::extent_2d m_ddk_extent;
+
+  [[nodiscard]] static int cross(int a, float b, float c) noexcept {
+    return static_cast<int>(static_cast<float>(a) * b / c);
+  }
 
 public:
   void build_primary_command_buffer(VkCommandBuffer cb) override {
@@ -221,28 +250,40 @@ public:
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
     auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->on_render_extent_change(e);
+    m_render_extent = e;
   }
 
-  void reset(const m4c0::fuji::device_context * ld, int w, int h) {
+  void reset(const m4c0::fuji::device_context * ld, unsigned w, unsigned h) {
     auto guard = std::lock_guard { m_obj_mutex };
     m_obj = std::make_unique<objects>(ld, w, h);
+    m_ddk_extent = m4c0::vulkan::extent_2d { w, h };
+  }
+  void update_mouse(const native_stuff * ns) const {
+    mouse_px = mouse_x.load();
+    mouse_py = mouse_y.load();
+    int x = 0;
+    int y = 0;
+    ns->get_mouse_position(&x, &y);
+    mouse_x = cross(x, m_ddk_extent.width(), m_render_extent.width());
+    mouse_y = cross(y, m_ddk_extent.height(), m_render_extent.height());
   }
 };
 
 class loop : public m4c0::fuji::main_loop {
 public:
-  void run_global(const m4c0::native_handles * nh) {
+  void run_global(const m4c0::native_handles * nh, const native_stuff * ns) {
     m4c0::fuji::device_context ld { "SFXR", nh };
     stuff s;
     listener() = &s;
 
-    set_screen_size = [s = &s, ld = &ld](int w, int h) {
+    set_screen_size = [this, s = &s, ld = &ld](int w, int h) {
       s->reset(ld, w, h);
       ddkpitch = w;
     };
-    std::thread([] {
+    std::thread([this, ns, s = &s] {
       ddkInit();
       while (ddkCalcFrame()) {
+        s->update_mouse(ns);
       }
       ddkFree();
     }).detach();

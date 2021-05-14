@@ -14,10 +14,6 @@ static constexpr const auto hWndMain = 0;
 static constexpr const auto DIK_SPACE = ' ';
 static constexpr const auto DIK_RETURN = '\n';
 
-static int mouse_x = 0;               // NOLINT
-static int mouse_y = 0;               // NOLINT
-static int mouse_px = 0;              // NOLINT
-static int mouse_py = 0;              // NOLINT
 static bool mouse_left = false;       // NOLINT
 static bool mouse_right = false;      // NOLINT
 static bool mouse_leftclick = false;  // NOLINT
