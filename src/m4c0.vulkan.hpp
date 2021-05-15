@@ -184,6 +184,7 @@ public:
     };
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) {
+    ddkCalcFrame();
     auto guard = std::lock_guard { m_mutex };
     m_front->build_secondary_command_buffer(cb);
   }
@@ -215,8 +216,6 @@ public:
     m_vtx_mem.build_secondary_command_buffer(cb);
     m_dbl_buf.build_secondary_command_buffer(cb);
     m4c0::vulkan::cmd::draw(cb).with_vertex_count(vtx_mem::count()).with_instance_count(m_dbl_buf.count()).now();
-
-    static std::unique_ptr<pixel_guard> guard;
   }
   void on_render_extent_change(m4c0::vulkan::extent_2d e) override {
     m_viewport.extent() = e;
@@ -229,6 +228,7 @@ public:
 };
 
 class stuff : public m4c0::fuji::main_loop_listener {
+  const native_stuff * m_ns;
   std::unique_ptr<objects> m_obj {};
   std::mutex m_obj_mutex {};
   m4c0::vulkan::extent_2d m_render_extent;
@@ -239,9 +239,12 @@ class stuff : public m4c0::fuji::main_loop_listener {
   }
 
 public:
+  explicit stuff(const native_stuff * ns) : m_ns(ns) {
+  }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
     auto guard = std::lock_guard { m_obj_mutex };
     if (m_obj) m_obj->build_primary_command_buffer(cb);
+    update_mouse();
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) override {
     auto guard = std::lock_guard { m_obj_mutex };
@@ -258,36 +261,45 @@ public:
     m_obj = std::make_unique<objects>(ld, w, h);
     m_ddk_extent = m4c0::vulkan::extent_2d { w, h };
   }
-  void update_mouse(const native_stuff * ns) const {
+  void update_mouse() const {
     mouse_px = mouse_x.load();
     mouse_py = mouse_y.load();
     int x = 0;
     int y = 0;
-    ns->get_mouse_position(&x, &y);
+    m_ns->get_mouse_position(&x, &y);
     mouse_x = cross(x, m_ddk_extent.width(), m_render_extent.width());
     mouse_y = cross(y, m_ddk_extent.height(), m_render_extent.height());
   }
+};
+
+class ddk_guard {
+public:
+  ddk_guard() {
+    ddkInit();
+  }
+  ~ddk_guard() {
+    ddkFree();
+  }
+
+  ddk_guard(const ddk_guard & o) = delete;
+  ddk_guard(ddk_guard && o) = delete;
+  ddk_guard & operator=(const ddk_guard & o) = delete;
+  ddk_guard & operator=(ddk_guard && o) = delete;
 };
 
 class loop : public m4c0::fuji::main_loop {
 public:
   void run_global(const m4c0::native_handles * nh, const native_stuff * ns) {
     m4c0::fuji::device_context ld { "SFXR", nh };
-    stuff s;
+    stuff s { ns };
     listener() = &s;
 
     set_screen_size = [this, s = &s, ld = &ld](int w, int h) {
       s->reset(ld, w, h);
       ddkpitch = w;
     };
-    std::thread([this, ns, s = &s] {
-      ddkInit();
-      while (ddkCalcFrame()) {
-        s->update_mouse(ns);
-      }
-      ddkFree();
-    }).detach();
 
+    ddk_guard ddk;
     run_device(&ld);
   }
 };
