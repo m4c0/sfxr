@@ -623,6 +623,10 @@ bool Button(int x, int y, bool highlight, const char * text, int id) {
     color1 = 0xA09088;
     color2 = 0xFFF0E0;
     color3 = 0xA09088;
+  } else if (hover) {
+    color1 = 0x000000;
+    color2 = 0x000000;
+    color3 = 0xA09088;
   }
   DrawBar(x - 1, y - 1, 102, 19, color1);
   DrawBar(x, y, 100, 17, color2);
