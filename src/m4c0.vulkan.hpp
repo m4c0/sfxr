@@ -224,7 +224,7 @@ public:
 
 class native_stuff {
 public:
-  virtual void get_mouse_position(int * x, int * y) const = 0;
+  virtual void get_mouse_position(float * x, float * y) const = 0;
 };
 
 class stuff : public m4c0::fuji::main_loop_listener {
@@ -233,10 +233,6 @@ class stuff : public m4c0::fuji::main_loop_listener {
   std::mutex m_obj_mutex {};
   m4c0::vulkan::extent_2d m_render_extent;
   m4c0::vulkan::extent_2d m_ddk_extent;
-
-  [[nodiscard]] static int cross(int a, float b, float c) noexcept {
-    return static_cast<int>(static_cast<float>(a) * b / c);
-  }
 
 public:
   explicit stuff(const native_stuff * ns) : m_ns(ns) {
@@ -264,11 +260,11 @@ public:
   void update_mouse() const {
     mouse_px = mouse_x.load();
     mouse_py = mouse_y.load();
-    int x = 0;
-    int y = 0;
-    m_ns->get_mouse_position(&x, &y);
-    mouse_x = cross(x, m_ddk_extent.width(), m_render_extent.width());
-    mouse_y = cross(y, m_ddk_extent.height(), m_render_extent.height());
+    float rx = 0;
+    float ry = 0;
+    m_ns->get_mouse_position(&rx, &ry);
+    mouse_x = static_cast<int>(rx * static_cast<float>(m_ddk_extent.width()));
+    mouse_y = static_cast<int>(ry * static_cast<float>(m_ddk_extent.height()));
   }
 };
 

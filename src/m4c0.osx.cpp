@@ -28,12 +28,11 @@ int main(int argc, char ** argv) {
       return m_layer;
     }
 
-    void get_mouse_position(int * x, int * y) const override {
+    void get_mouse_position(float * x, float * y) const override {
       auto pos = m4c0::objc::objc_msg_send<CGPoint>(m_window, "mouseLocationOutsideOfEventStream");
       auto bounds = m4c0::objc::objc_msg_send<CGRect>(m_view, "bounds");
-      auto scale = m4c0::objc::objc_msg_send<CGFloat>(m_layer, "contentsScale");
-      *x = pos.x * scale;
-      *y = (bounds.size.height - pos.y) * scale;
+      *x = pos.x / bounds.size.width;
+      *y = (bounds.size.height - pos.y) / bounds.size.height;
     }
   } d;
   return m4c0::osx::main(argc, argv, &d);

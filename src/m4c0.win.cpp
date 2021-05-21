@@ -29,12 +29,16 @@ LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPA
       m_stuff.interrupt();
     }
 
-    void get_mouse_position(int * x, int * y) const override {
+    void get_mouse_position(float * x, float * y) const override {
       POINT p;
       GetCursorPos(&p);
       ScreenToClient(m_hwnd, &p);
-      *x = p.x;
-      *y = p.y;
+
+      RECT r;
+      GetWindowRect(m_hwnd, &r);
+
+      *x = static_cast<float>(p.x) / static_cast<float>(r.right - r.left);
+      *y = static_cast<float>(p.y) / static_cast<float>(r.bottom - r.top);
     }
   } wnd { hwnd };
 
