@@ -577,9 +577,11 @@ bool firstframe = true;
 int refresh_counter = 0;
 
 void Slider(int x, int y, float & value, bool bipolar, const char * text) {
+  bool hover = false;
   if (MouseInBox(x, y, 100, 10)) {
     if (mouse_leftclick) vselected = &value;
     if (mouse_rightclick) value = 0.0f;
+    hover = true;
   }
   float mv = (float)(mouse_x - mouse_px);
   if (vselected != &value) mv = 0.0f;
@@ -595,8 +597,8 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   DrawBar(x - 1, y, 102, 10, 0x000000);
   int ival = (int)(value * 99);
   if (bipolar) ival = (int)(value * 49.5f + 49.5f);
-  DrawBar(x, y + 1, ival, 8, 0xF0C090);
-  DrawBar(x + ival, y + 1, 100 - ival, 8, 0x807060);
+  DrawBar(x, y + 1, ival, 8, hover ? 0xFFFFFF : 0xF0C090);
+  DrawBar(x + ival, y + 1, 100 - ival, 8, hover ? 0x000000 : 0x807060);
   DrawBar(x + ival, y + 1, 1, 8, 0xFFFFFF);
   if (bipolar) {
     DrawBar(x + 50, y - 1, 1, 3, 0x000000);

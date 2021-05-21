@@ -8,7 +8,7 @@
 #include <windows.h>
 
 LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
-  static class wnd_provider : public m4c0::native_handles {
+  static class wnd_provider : public m4c0::native_handles, native_stuff {
     m4c0::fuji::main_loop_thread<loop> m_stuff {};
     HWND m_hwnd;
 
@@ -23,10 +23,18 @@ LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPA
     }
 
     void start() {
-      m_stuff.start(this);
+      m_stuff.start(this, this);
     }
     void stop() {
       m_stuff.stop();
+    }
+
+    void get_mouse_position(int * x, int * y) const override {
+      POINT p;
+      GetCursorPos(&p);
+      ScreenToClient(hwnd, &p);
+      *x = p.x;
+      *y = p.y;
     }
   } wnd { hwnd };
 

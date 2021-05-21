@@ -10,10 +10,12 @@ int main(int argc, char ** argv) {
   static class : public m4c0::osx::delegate, public m4c0::native_handles, public native_stuff {
     m4c0::fuji::main_loop_thread<loop> m_stuff {};
     CAMetalLayer * m_layer {};
+    void * m_view {};
     void * m_window {};
 
   public:
     void start(void * view) override {
+      m_view = view;
       m_window = m4c0::objc::objc_msg_send<void *>(view, "window");
       m_layer = m4c0::objc::objc_msg_send<CAMetalLayer *>(view, "layer");
       m_stuff.start(this, this);
@@ -28,8 +30,10 @@ int main(int argc, char ** argv) {
 
     void get_mouse_position(int * x, int * y) const override {
       auto pos = m4c0::objc::objc_msg_send<CGPoint>(m_window, "mouseLocationOutsideOfEventStream");
-      *x = pos.x;
-      *y = pos.y;
+      auto bounds = m4c0::objc::objc_msg_send<CGRect>(m_view, "bounds");
+      auto scale = m4c0::objc::objc_msg_send<CGFloat>(m_layer, "contentsScale");
+      *x = pos.x * scale;
+      *y = (bounds.size.height - pos.y) * scale;
     }
   } d;
   return m4c0::osx::main(argc, argv, &d);
