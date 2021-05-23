@@ -7,9 +7,15 @@ project(sfxr
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(m4c0-stl)
 
-add_executable(sfxr src/main.cpp src/m4c0.ddk.cpp)
+add_executable(sfxr WIN32 MACOSX_BUNDLE src/main.cpp src/m4c0.ddk.cpp)
 target_compile_definitions(sfxr PRIVATE M4C0)
 target_link_libraries(sfxr PRIVATE m4c0::fuji m4c0::vulkan)
+set_target_properties(sfxr PROPERTIES
+  MACOSX_BUNDLE_BUNDLE_NAME "SFXR"
+  MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+  MACOSX_BUNDLE_GUI_IDENTIFIER "com.github.m4c0.sfxr"
+  MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_PATCH}
+  )
 
 if(WIN32)
   target_link_libraries(sfxr PRIVATE m4c0::win::main)
