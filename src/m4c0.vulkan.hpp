@@ -224,7 +224,7 @@ public:
 
 class native_stuff {
 public:
-  virtual void get_mouse_position(float * x, float * y) const = 0;
+  virtual void get_mouse_position(float * x, float * y, bool * down) const = 0;
 };
 
 class stuff : public m4c0::fuji::main_loop_listener {
@@ -262,9 +262,12 @@ public:
     mouse_py = mouse_y.load();
     float rx = 0;
     float ry = 0;
-    m_ns->get_mouse_position(&rx, &ry);
+    bool down = false;
+    m_ns->get_mouse_position(&rx, &ry, &down);
     mouse_x = static_cast<int>(rx * static_cast<float>(m_ddk_extent.width()));
     mouse_y = static_cast<int>(ry * static_cast<float>(m_ddk_extent.height()));
+    mouse_leftclick = down & !mouse_left;
+    mouse_left = down;
   }
 };
 

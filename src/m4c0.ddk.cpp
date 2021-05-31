@@ -7,6 +7,9 @@ std::atomic_int mouse_y;  // NOLINT
 std::atomic_int mouse_px; // NOLINT
 std::atomic_int mouse_py; // NOLINT
 
+std::atomic_bool mouse_left;      // NOLINT
+std::atomic_bool mouse_leftclick; // NOLINT
+
 std::function<void()> lock;   // NOLINT
 std::function<void()> unlock; // NOLINT
 

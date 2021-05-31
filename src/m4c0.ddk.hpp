@@ -18,6 +18,9 @@ extern std::atomic_int mouse_y;  // NOLINT
 extern std::atomic_int mouse_px; // NOLINT
 extern std::atomic_int mouse_py; // NOLINT
 
+extern std::atomic_bool mouse_left;      // NOLINT
+extern std::atomic_bool mouse_leftclick; // NOLINT
+
 extern std::function<void()> lock;   // NOLINT
 extern std::function<void()> unlock; // NOLINT
 
