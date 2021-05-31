@@ -29,17 +29,18 @@ LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPA
       m_stuff.interrupt();
     }
 
-    void get_mouse_position(float * x, float * y) const override {
-      POINT p;
-      GetCursorPos(&p);
-      ScreenToClient(m_hwnd, &p);
+    void update_mouse(LPARAM l) {
+      auto px = static_cast<float>(GET_X_PARAM(l));
+      auto py = static_cast<float>(GET_Y_PARAM(l));
 
       RECT r;
       GetClientRect(m_hwnd, &r);
 
-      *x = static_cast<float>(p.x) / static_cast<float>(r.right - r.left);
-      *y = static_cast<float>(p.y) / static_cast<float>(r.bottom - r.top);
+      *x = px / static_cast<float>(r.right - r.left);
+      *y = py / static_cast<float>(r.bottom - r.top);
+      *down = false;
     }
+    using native_pointer::update_mouse_down;
   } wnd { hwnd };
 
   switch (msg) {
@@ -52,6 +53,20 @@ LRESULT CALLBACK m4c0::win::window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPA
   case WM_DESTROY:
     wnd.stop();
     PostQuitMessage(0);
+    return 0;
+
+  case WM_MOUSEMOVE:
+    wnd.update_mouse(l_param);
+    return 0;
+
+  case WM_LBUTTONDOWN:
+    wnd.update_mouse(l_param);
+    wnd.update_mouse_down(true);
+    return 0;
+
+  case WM_LBUTTONUP:
+    wnd.update_mouse(l_param);
+    wnd.update_mouse_down(false);
     return 0;
 
   default:

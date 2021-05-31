@@ -223,8 +223,25 @@ public:
 };
 
 class native_stuff {
+  std::atomic<float> m_mouse_x {};
+  std::atomic<float> m_mouse_y {};
+  std::atomic_bool m_click {};
+
+protected:
+  void update_mouse_down(bool down) {
+    m_click = down;
+  }
+  void update_mouse_pos(float x, float y) {
+    m_mouse_x = x;
+    m_mouse_y = y;
+  }
+
 public:
-  virtual void get_mouse_position(float * x, float * y, bool * down) const = 0;
+  void get_mouse_position(float * x, float * y, bool * down) const {
+    *x = m_mouse_x;
+    *y = m_mouse_y;
+    *down = m_click;
+  }
 };
 
 class stuff : public m4c0::fuji::main_loop_listener {

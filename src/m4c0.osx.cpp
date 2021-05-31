@@ -12,9 +12,6 @@
 class resources : public m4c0::native_handles, public native_stuff {
   m4c0::fuji::main_loop_thread<loop> m_stuff {};
   m4c0::objc::mtk_view m_view;
-  std::atomic<float> m_mouse_x {};
-  std::atomic<float> m_mouse_y {};
-  std::atomic_bool m_click {};
 
 public:
   explicit resources(const m4c0::objc::mtk_view * v) : m_view(*v) {
@@ -33,19 +30,13 @@ public:
     return m_view.layer().self();
   }
 
-  void get_mouse_position(float * x, float * y, bool * down) const override {
-    *x = m_mouse_x;
-    *y = m_mouse_y;
-    *down = m_click;
-  }
   void update_mouse(m4c0::objc::cg_point pos) {
     auto bounds = m_view.bounds();
-    m_mouse_x = static_cast<float>(pos.x / bounds.size.width);
-    m_mouse_y = static_cast<float>((bounds.size.height - pos.y) / bounds.size.height);
+    auto x = static_cast<float>(pos.x / bounds.size.width);
+    auto y = static_cast<float>((bounds.size.height - pos.y) / bounds.size.height);
+    update_mouse_pos(x, y);
   }
-  void update_mouse_down(bool down) {
-    m_click = down;
-  }
+  using native_stuff::update_mouse_down;
 };
 
 int main(int argc, char ** argv) {
