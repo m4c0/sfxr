@@ -5,23 +5,25 @@
 
 */
 
-#ifdef WIN32
-#include "ddrawkit.h"
-#elif M4C0
+#if M4C0
 #include "m4c0.hpp"
+#elif defined(WIN32)
+#include "ddrawkit.h"
 #else
 #include "sdlkit.h"
 #endif
+
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#ifdef WIN32
+
+#if M4C0
+#elif defined(WIN32)
 #include "DPInput.h"      // WIN32
 #include "fileselector.h" // WIN32
 #include "pa/portaudio.h"
-#elif M4C0
 #else
 #include "SDL.h"
 #endif
@@ -470,12 +472,13 @@ void SynthSample(int length, float * buffer, FILE * file) {
 }
 
 DPInput * input;
-#ifdef WIN32
+#if defined(WIN32) && !M4C0
 PortAudioStream * stream;
 #endif
 bool mute_stream;
 
-#ifdef WIN32
+#if M4C0
+#elif defined(WIN32)
 // ancient portaudio stuff
 static int AudioCallback(
     void * inputBuffer,
@@ -495,7 +498,6 @@ static int AudioCallback(
 
   return 0;
 }
-#elif M4C0
 #else
 // lets use SDL in stead
 static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
@@ -1050,7 +1052,8 @@ void ddkInit() {
 
   ResetParams();
 
-#ifdef WIN32
+#if M4C0
+#elif defined(WIN32)
   // Init PortAudio
   SetEnvironmentVariable("PA_MIN_LATENCY_MSEC", "75"); // WIN32
   Pa_Initialize();
@@ -1065,7 +1068,6 @@ void ddkInit() {
       AudioCallback,
       NULL);
   Pa_StartStream(stream);
-#elif M4C0
 #else
   SDL_AudioSpec des;
   des.freq = 44100;
@@ -1084,7 +1086,7 @@ void ddkFree() {
   free(ld48.data);
   free(font.data);
 
-#ifdef WIN32
+#if defined(WIN32) && !M4C0
   // Close PortAudio
   Pa_StopStream(stream);
   Pa_CloseStream(stream);

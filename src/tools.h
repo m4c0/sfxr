@@ -1,3 +1,6 @@
+#pragma once
+#include <string.h>
+
 int LoadTGA(Spriteset & tiles, const char * filename) {
   FILE * file;
   unsigned char byte, crap[16], id_length;
