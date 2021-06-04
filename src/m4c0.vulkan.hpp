@@ -10,6 +10,7 @@
 #include "m4c0/vulkan/buffer_memory_bind.hpp"
 #include "m4c0/vulkan/device_memory.hpp"
 #include "m4c0/vulkan/draw.hpp"
+#include "m4c0/vulkan/extent_2d.hpp"
 #include "m4c0/vulkan/full_extent_viewport.hpp"
 #include "m4c0/vulkan/pipeline.hpp"
 #include "m4c0/vulkan/pipeline_layout.hpp"
@@ -218,10 +219,15 @@ protected:
   }
 
 public:
-  void get_mouse_position(float * x, float * y, bool * down) const {
-    *x = m_mouse_x;
-    *y = m_mouse_y;
-    *down = m_click;
+  void update_mouse(m4c0::vulkan::extent_2d ddk_extent) const {
+    mouse_px = mouse_x.load();
+    mouse_py = mouse_y.load();
+
+    mouse_x = static_cast<int>(m_mouse_x * static_cast<float>(ddk_extent.width()));
+    mouse_y = static_cast<int>(m_mouse_y * static_cast<float>(ddk_extent.height()));
+
+    mouse_leftclick = m_click && !mouse_left;
+    mouse_left = m_click.load();
   }
 };
 
@@ -256,16 +262,7 @@ public:
     m_ddk_extent = m4c0::vulkan::extent_2d { w, h };
   }
   void update_mouse() const {
-    mouse_px = mouse_x.load();
-    mouse_py = mouse_y.load();
-    float rx = 0;
-    float ry = 0;
-    bool down = false;
-    m_ns->get_mouse_position(&rx, &ry, &down);
-    mouse_x = static_cast<int>(rx * static_cast<float>(m_ddk_extent.width()));
-    mouse_y = static_cast<int>(ry * static_cast<float>(m_ddk_extent.height()));
-    mouse_leftclick = down & !mouse_left;
-    mouse_left = down;
+    m_ns->update_mouse(m_ddk_extent);
   }
 };
 
