@@ -25,6 +25,7 @@ public:
   void on_event(const m4c0::objc::ns_event * e) override {
     switch (e->type()) {
     case m4c0::objc::ns_event_type::mouse_moved:
+    case m4c0::objc::ns_event_type::mouse_left_dragged:
       natives.update_mouse(view().bounds(), e->location_in_window());
       break;
     case m4c0::objc::ns_event_type::mouse_left_down:
