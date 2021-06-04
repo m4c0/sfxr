@@ -1,0 +1,3 @@
+#include "m4c0/win/rc.h"
+
+STRINGTABLE { IDS_M4C0_APP_TITLE "SFXR" }

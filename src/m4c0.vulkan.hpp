@@ -1,6 +1,7 @@
 #pragma once
 
 #include "m4c0.ddk.hpp"
+#include "m4c0/casein/main.hpp"
 #include "m4c0/fuji/device_context.hpp"
 #include "m4c0/fuji/main_loop.hpp"
 #include "m4c0/vulkan/bind_pipeline.hpp"
@@ -21,11 +22,6 @@
 #include <mutex>
 #include <span>
 #include <thread>
-
-extern "C" {
-#include "main.frag.h"
-#include "main.vert.h"
-}
 
 template<class DataTp>
 static auto shader(DataTp && data, unsigned size) {
@@ -123,22 +119,7 @@ class pipeline {
   } m_consts {};
 
 public:
-  explicit pipeline(const m4c0::fuji::device_context * ld, unsigned w, unsigned h)
-    : m_pipeline_layout(
-        pipeline_layout::builder().add_vertex_push_constant_with_size_and_offset(sizeof(consts), 0).build())
-    , m_pipeline(pipe::builder()
-                     .with_pipeline_layout(&m_pipeline_layout)
-                     .with_render_pass(ld->render_pass())
-                     .add_vertex_binding_with_stride(vtx_mem::stride())
-                     .add_vertex_binding_instanced_with_stride(color_mem::stride())
-                     .add_vec2_attribute_with_bind_and_offset(0, 0)
-                     .add_s16vec2_attribute_with_bind_and_offset(1, 0)
-                     .add_u8vec4_attribute_with_bind_and_offset(1, 4)
-                     .add_vertex_stage(shader(main_vert_spv, main_vert_spv_len), "main")
-                     .add_fragment_stage(shader(main_frag_spv, main_frag_spv_len), "main")
-                     .build())
-    , m_consts({ static_cast<float>(w) / 2, static_cast<float>(h) / 2 }) {
-  }
+  explicit pipeline(const m4c0::fuji::device_context * ld, unsigned w, unsigned h);
 
   void build_secondary_command_buffer(VkCommandBuffer cb) {
     m4c0::vulkan::cmd::bind_pipeline(cb).with_pipeline(&m_pipeline).now();
@@ -319,3 +300,5 @@ public:
     run_device(&ld);
   }
 };
+
+extern const native_stuff * const natives_ptr;

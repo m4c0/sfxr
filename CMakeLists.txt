@@ -7,9 +7,9 @@ project(sfxr
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(m4c0-stl)
 
-add_executable(sfxr WIN32 MACOSX_BUNDLE src/main.cpp src/m4c0.ddk.cpp)
+add_executable(sfxr WIN32 MACOSX_BUNDLE src/main.cpp src/m4c0.ddk.cpp src/m4c0.cpp)
 target_compile_definitions(sfxr PRIVATE M4C0)
-target_link_libraries(sfxr PRIVATE m4c0::fuji m4c0::vulkan)
+target_link_libraries(sfxr PRIVATE m4c0::casein m4c0::fuji m4c0::vulkan)
 set_target_properties(sfxr PROPERTIES
   MACOSX_BUNDLE_BUNDLE_NAME "SFXR"
   MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -19,7 +19,7 @@ set_target_properties(sfxr PROPERTIES
 
 if(WIN32)
   target_link_libraries(sfxr PRIVATE m4c0::win::main)
-  target_sources(sfxr PRIVATE src/m4c0.win.cpp)
+  target_sources(sfxr PRIVATE src/m4c0.win.cpp src/m4c0.win.rc)
 elseif(APPLE)
   target_link_libraries(sfxr PRIVATE m4c0::osx::main)
   target_sources(sfxr PRIVATE src/m4c0.osx.cpp)
