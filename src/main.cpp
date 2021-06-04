@@ -606,32 +606,101 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   DrawText(x - 4 - strlen(text) * 8, y + 1, tcol, text);
 }
 
-bool Button(int x, int y, bool highlight, const char * text, int id) {
-  DWORD color1 = 0x000000;
-  DWORD color2 = 0xA09088;
-  DWORD color3 = 0x000000;
-  bool hover = MouseInBox(x, y, 100, 17);
-  if (hover && mouse_leftclick) vcurbutton = id;
-  bool current = (vcurbutton == id);
-  if (highlight) {
-    color1 = 0x000000;
-    color2 = 0x988070;
-    color3 = 0xFFF0E0;
-  }
+struct point {
+  int x;
+  int y;
+};
+static constexpr bool operator>=(const point & a, const point & b) noexcept {
+  return a.x >= b.x && a.y >= b.y;
+}
+static constexpr bool operator<=(const point & a, const point & b) noexcept {
+  return a.x <= b.x && a.y <= b.y;
+}
+
+struct box {
+  point p1;
+  point p2;
+};
+
+static constexpr bool in_box(const point & p, const box & b) {
+  return b.p1 <= p && p <= b.p2;
+}
+
+using color = unsigned;
+struct btn_colors {
+  color c1;
+  color c2;
+  color c3;
+};
+
+enum class btn_state {
+  normal,
+  hover,
+  down,
+  highlight,
+};
+
+static constexpr btn_colors btn_colors_for_state(btn_state state) {
+  constexpr const color palette0 { 0xA09088 };
+  constexpr const color palette1 { 0xFFF0E0 };
+  constexpr const color palette2 { 0x000000 };
+  constexpr const color palette3 { 0x988070 }; // TODO: do we need a four-color palette?
+  switch (state) {
+  case btn_state::normal:
+    return { palette2, palette0, palette2 };
+  case btn_state::hover:
+    return { palette2, palette2, palette0 };
+  case btn_state::highlight:
+    return { palette2, palette3, palette1 };
+  case btn_state::down:
+    return { palette0, palette1, palette0 };
+  };
+}
+static constexpr bool is_button_clicked(btn_state state, bool mouse_up) {
+  return state == btn_state::down && mouse_up;
+}
+
+struct button {
+  box bounds;
+  bool highlight;
+  int id;
+};
+static constexpr btn_state button_state(const point & mouse, const button & btn, int cur_btn_id, bool mouse_lc) {
+  bool hover = in_box(mouse, btn.bounds);
+  bool pressing = hover && mouse_lc;
+  bool current = pressing || (cur_btn_id == btn.id);
   if (current && hover) {
-    color1 = 0xA09088;
-    color2 = 0xFFF0E0;
-    color3 = 0xA09088;
-  } else if (hover) {
-    color1 = 0x000000;
-    color2 = 0x000000;
-    color3 = 0xA09088;
+    return btn_state::down;
   }
-  DrawBar(x - 1, y - 1, 102, 19, color1);
-  DrawBar(x, y, 100, 17, color2);
-  DrawText(x + 5, y + 5, color3, text);
-  if (current && hover && !mouse_left) return true;
-  return false;
+  if (hover) {
+    return btn_state::hover;
+  }
+  if (btn.highlight) {
+    return btn_state::highlight;
+  }
+  return btn_state::normal;
+}
+
+bool Button(int x, int y, bool highlight, const char * text, int id) {
+  constexpr const auto btn_w = 100;
+  constexpr const auto btn_h = 17;
+  constexpr const auto btn_margin = 5;
+
+  point mouse { mouse_x, mouse_y };
+  button btn {
+    .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
+    .highlight = highlight,
+    .id = id,
+  };
+  auto state = button_state(mouse, btn, vcurbutton, mouse_leftclick);
+  auto colors = btn_colors_for_state(state);
+
+  DrawBar(x - 1, y - 1, btn_w + 2, btn_h + 2, colors.c1);
+  DrawBar(x, y, btn_w, btn_h, colors.c2);
+  DrawText(x + btn_margin, y + btn_margin, colors.c3, text);
+
+  if (state == btn_state::down) vcurbutton = id;
+  return is_button_clicked(state, !mouse_left);
 }
 
 void DrawGenerators() {
