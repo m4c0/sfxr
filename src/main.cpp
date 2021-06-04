@@ -13,6 +13,7 @@
 #include "sdlkit.h"
 #endif
 
+#include <array>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -45,12 +46,6 @@ struct Spriteset {
 
 Spriteset font;
 Spriteset ld48;
-
-struct Category {
-  char name[32];
-};
-
-Category categories[10];
 
 int wave_type;
 
@@ -639,41 +634,12 @@ bool Button(int x, int y, bool highlight, const char * text, int id) {
   return false;
 }
 
-int drawcount = 0;
-
-void DrawScreen() {
-  bool redraw = true;
-  if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
-  if (!mouse_left) {
-    if (vselected != NULL || vcurbutton > -1) {
-      redraw = true;
-      refresh_counter = 2;
-    }
-    vselected = NULL;
-  }
-  if (refresh_counter > 0) {
-    refresh_counter--;
-    redraw = true;
-  }
-
-  if (playing_sample) redraw = true;
-
-  if (drawcount++ > 20) {
-    redraw = true;
-    drawcount = 0;
-  }
-
-  if (!redraw) return;
-
-  firstframe = false;
-
-  ddkLock();
-
-  ClearScreen(0xC0B090);
-
-  DrawText(10, 10, 0x504030, "GENERATOR");
-  for (int i = 0; i < 7; i++) {
-    if (Button(5, 35 + i * 30, false, categories[i].name, 300 + i)) {
+void DrawGenerators() {
+  static constexpr const auto categories = std::array {
+    "PICKUP/COIN", "LASER/SHOOT", "EXPLOSION", "POWERUP", "HIT/HURT", "JUMP", "BLIP/SELECT",
+  };
+  for (int i = 0; i < categories.size(); i++) {
+    if (Button(5, 35 + i * 30, false, categories[i], 300 + i)) {
       switch (i) {
       case 0: // pickup/coin
         ResetParams();
@@ -806,10 +772,46 @@ void DrawScreen() {
       default:
         break;
       }
-
       PlaySample();
     }
   }
+}
+
+int drawcount = 0;
+
+void DrawScreen() {
+  bool redraw = true;
+  if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
+  if (!mouse_left) {
+    if (vselected != NULL || vcurbutton > -1) {
+      redraw = true;
+      refresh_counter = 2;
+    }
+    vselected = NULL;
+  }
+  if (refresh_counter > 0) {
+    refresh_counter--;
+    redraw = true;
+  }
+
+  if (playing_sample) redraw = true;
+
+  if (drawcount++ > 20) {
+    redraw = true;
+    drawcount = 0;
+  }
+
+  if (!redraw) return;
+
+  firstframe = false;
+
+  ddkLock();
+
+  ClearScreen(0xC0B090);
+
+  DrawText(10, 10, 0x504030, "GENERATOR");
+  DrawGenerators();
+
   DrawBar(110, 0, 2, 480, 0x000000);
   DrawText(120, 10, 0x504030, "MANUAL SETTINGS");
   DrawSprite(ld48, 8, 440, 0, 0xB0A080);
@@ -1041,14 +1043,6 @@ void ddkInit() {
   ld48.width = ld48.pitch;
 
   input = new DPInput(hWndMain, hInstanceMain); // WIN32
-
-  strcpy(categories[0].name, "PICKUP/COIN");
-  strcpy(categories[1].name, "LASER/SHOOT");
-  strcpy(categories[2].name, "EXPLOSION");
-  strcpy(categories[3].name, "POWERUP");
-  strcpy(categories[4].name, "HIT/HURT");
-  strcpy(categories[5].name, "JUMP");
-  strcpy(categories[6].name, "BLIP/SELECT");
 
   ResetParams();
 
