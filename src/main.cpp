@@ -13,8 +13,10 @@
 #include "sdlkit.h"
 #endif
 
+#include <algorithm>
 #include <array>
 #include <math.h>
+#include <optional>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -606,148 +608,11 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   DrawText(x - 4 - strlen(text) * 8, y + 1, tcol, text);
 }
 
-struct point {
-  int x;
-  int y;
-};
-static constexpr bool operator>=(const point & a, const point & b) noexcept {
-  return a.x >= b.x && a.y >= b.y;
-}
-static constexpr bool operator<=(const point & a, const point & b) noexcept {
-  return a.x <= b.x && a.y <= b.y;
-}
+#include "button.hpp"
+#include "geom.hpp"
+#include "ui.hpp"
+#include "utils.hpp"
 
-struct box {
-  point p1;
-  point p2;
-};
-
-static constexpr bool in_box(const point & p, const box & b) {
-  return b.p1 <= p && p <= b.p2;
-}
-
-using color = unsigned;
-struct btn_colors {
-  color c1;
-  color c2;
-  color c3;
-};
-
-enum class btn_state {
-  normal,
-  hover,
-  down,
-  highlight,
-};
-
-struct mouse {
-  point pos;
-  bool down;
-  bool clicked;
-};
-
-static constexpr btn_colors btn_colors_for_state(btn_state state) {
-  constexpr const color palette0 { 0xA09088 };
-  constexpr const color palette1 { 0xFFF0E0 };
-  constexpr const color palette2 { 0x000000 };
-  constexpr const color palette3 { 0x988070 }; // TODO: do we need a four-color palette?
-  switch (state) {
-  case btn_state::normal:
-    return { palette2, palette0, palette2 };
-  case btn_state::hover:
-    return { palette2, palette2, palette0 };
-  case btn_state::highlight:
-    return { palette2, palette3, palette1 };
-  case btn_state::down:
-    return { palette0, palette1, palette0 };
-  };
-}
-static constexpr bool is_button_clicked(btn_state state, bool mouse_up) {
-  return state == btn_state::down && mouse_up;
-}
-
-using callback = void (*)();
-
-struct button {
-  box bounds;
-  bool highlight;
-  int id;
-  const char * text;
-  callback cb;
-};
-static constexpr btn_state button_state(const mouse & mouse, const button & btn, int cur_btn_id) {
-  bool hover = in_box(mouse.pos, btn.bounds);
-  bool pressing = hover && mouse.clicked;
-  bool current = pressing || (cur_btn_id == btn.id);
-  if (current && hover) {
-    return btn_state::down;
-  }
-  if (hover) {
-    return btn_state::hover;
-  }
-  if (btn.highlight) {
-    return btn_state::highlight;
-  }
-  return btn_state::normal;
-}
-
-struct ui_bar {
-  box bounds;
-  color color;
-};
-struct ui_text {
-  point pos;
-  color color;
-  const char * text;
-};
-enum class ui_item_type { bar, text };
-struct ui_item { // NOLINT
-  union {
-    ui_bar bar;
-    ui_text text;
-  } data;
-  ui_item_type type;
-};
-static constexpr ui_item bar_item(const box & b, color c) {
-  return ui_item {
-    .data = { .bar = ui_bar { b, c } },
-    .type = ui_item_type::bar,
-  };
-}
-static constexpr ui_item text_item(const point & p, color c, const char * txt) {
-  return ui_item {
-    .data = { .text = ui_text { p, c, txt } },
-    .type = ui_item_type::text,
-  };
-}
-static constexpr point add(const point & p, int dx) {
-  return point { p.x + dx, p.y + dx };
-}
-static constexpr box extend(const box & b, int dx) {
-  return box { add(b.p1, -dx), add(b.p2, dx) };
-}
-
-template<unsigned Qty>
-struct ui_result {
-  std::array<ui_item, Qty> items;
-  std::optional<int> sel;
-  std::optional<callback> clicked;
-};
-
-static constexpr auto btn_ui_items(const button & btn, btn_state state) {
-  constexpr const auto btn_margin = 5;
-  auto colors = btn_colors_for_state(state);
-  return std::array {
-    bar_item(extend(btn.bounds, 1), colors.c1),
-    bar_item(btn.bounds, colors.c2),
-    text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text),
-  };
-}
-template<class Tp>
-static constexpr std::optional<Tp> cond(bool yes, Tp val) {
-  if (yes) return { val };
-  return {};
-}
 static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
   auto state = button_state(ms, btn, cur_btn);
   return ui_result<3> {
@@ -757,40 +622,17 @@ static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, i
   };
 }
 
-template<class Tp>
-static constexpr auto opt_chain(std::optional<Tp> a, std::optional<Tp> b) {
-  if (a) return a;
-  return b;
-}
-template<class Tp, auto A, auto B>
-static constexpr std::array<Tp, A + B> concat(const std::array<Tp, A> & a, const std::array<Tp, B> & b) {
-  std::array<Tp, A + B> result {};
-  std::copy(a.cbegin(), a.cend(), result.begin());
-  std::copy(b.cbegin(), b.cend(), result.begin() + A);
-  return result;
-}
-
-template<unsigned A, unsigned B>
-static constexpr ui_result<A + B> operator+(const ui_result<A> & a, const ui_result<B> b) {
-  return ui_result<A + B> {
-    .items = concat(a.items, b.items),
-    .sel = opt_chain(a.sel, b.sel),
-    .clicked = opt_chain(a.clicked, b.clicked),
-  };
-}
-
-constexpr auto btn(int cb, const mouse & m, int x, int y, bool highlight, const char * text, int id, callback call) {
+static constexpr auto btn(int x, int y, bool highlight, const char * text, int id, ui_callback call) {
   constexpr const auto btn_w = 100;
   constexpr const auto btn_h = 17;
 
-  button btn {
+  return button {
     .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
     .highlight = highlight,
     .id = id,
     .text = text,
     .cb = call,
   };
-  return imm_button(m, btn, cb);
 }
 
 void draw_item(const ui_item & i) {
@@ -807,31 +649,30 @@ void draw_item(const ui_item & i) {
   }
   }
 }
+template<auto N>
+void draw_items(const ui_result<N> & ui) {
+  for (const auto & u : ui.items) {
+    draw_item(u);
+  }
+}
+template<auto N>
+void run_result(const ui_result<N> & ui) {
+  draw_items(ui);
+  if (ui.sel) vcurbutton = ui.sel.value();
+  if (ui.clicked) ui.clicked.value()();
+}
 
 bool Button(int x, int y, bool highlight, const char * text, int id) {
-  constexpr const auto btn_w = 100;
-  constexpr const auto btn_h = 17;
-  constexpr const auto btn_margin = 5;
-
   mouse ms {
     .pos = { mouse_x, mouse_y },
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  button btn {
-    .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
-    .highlight = highlight,
-    .id = id,
-  };
-  auto state = button_state(ms, btn, vcurbutton);
-
-  auto colors = btn_colors_for_state(state);
-  DrawBar(x - 1, y - 1, btn_w + 2, btn_h + 2, colors.c1);
-  DrawBar(x, y, btn_w, btn_h, colors.c2);
-  DrawText(x + btn_margin, y + btn_margin, colors.c3, text);
-
-  if (state == btn_state::down) vcurbutton = id;
-  return is_button_clicked(state, !mouse_left);
+  auto b = btn(x, y, highlight, text, id, [] {
+  });
+  auto imm = imm_button(ms, b, vcurbutton);
+  run_result(imm);
+  return imm.sel.value_or(id + 1) == id;
 }
 
 static void do_pickup_coin() {
@@ -972,39 +813,8 @@ static void do_blip_select() {
 
 struct gen_btn {
   const char * name;
-  callback cb;
+  ui_callback cb;
 };
-class count_iter {
-  int idx {};
-
-public:
-  [[nodiscard]] constexpr auto operator*() const noexcept {
-    return idx;
-  }
-  [[nodiscard]] constexpr count_iter & operator++() noexcept {
-    idx++;
-    return *this;
-  }
-  [[nodiscard]] constexpr count_iter operator++(int) noexcept { // NOLINT
-    count_iter res = *this;
-    idx++;
-    return res;
-  }
-};
-template<class To, class From, auto N, class Fn>
-static constexpr std::array<To, N> convert(const std::array<From, N> & from, Fn && fn) {
-  std::array<To, N> to {};
-  std::transform(from.begin(), from.end(), count_iter {}, to.begin(), fn);
-  return to;
-}
-template<class Arr, typename T, T... idxs>
-static constexpr auto sum_all(const Arr & arr, std::integer_sequence<T, idxs...> /*seq*/) {
-  return (arr[idxs] + ...);
-}
-template<class Arr>
-static constexpr auto sum_all(const Arr & arr) {
-  return sum_all(arr, std::make_integer_sequence<int, Arr().size()>());
-}
 static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
   constexpr const auto categories = std::array {
     gen_btn { "PICKUP/COIN", do_pickup_coin }, gen_btn { "LASER/SHOOT", do_laser_shoot },
@@ -1012,12 +822,13 @@ static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
     gen_btn { "HIT/HURT", do_hit_hurt },       gen_btn { "JUMP", do_jump },
     gen_btn { "BLIP/SELECT", do_blip_select },
   };
-  const auto btns = convert<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
+  const auto btns = convert_indexed<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
     constexpr auto base_idx = 300;
     constexpr auto base_y = 35;
     constexpr auto step = 30;
     constexpr auto x = 5;
-    return btn(cb, ms, x, base_y + idx * step, false, cat.name, base_idx + idx, cat.cb);
+    const auto b = btn(x, base_y + idx * step, false, cat.name, base_idx + idx, cat.cb);
+    return imm_button(ms, b, cb);
   });
   return sum_all(btns);
 }
@@ -1027,12 +838,7 @@ void DrawGenerators() {
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  const auto ui = draw_gen_btns(vcurbutton, ms);
-  for (const auto & u : ui.items) {
-    draw_item(u);
-  }
-  if (ui.sel) vcurbutton = ui.sel.value();
-  if (ui.clicked) ui.clicked.value()();
+  run_result(draw_gen_btns(vcurbutton, ms));
 }
 
 int drawcount = 0;
