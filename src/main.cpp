@@ -640,6 +640,12 @@ enum class btn_state {
   highlight,
 };
 
+struct mouse {
+  point pos;
+  bool down;
+  bool clicked;
+};
+
 static constexpr btn_colors btn_colors_for_state(btn_state state) {
   constexpr const color palette0 { 0xA09088 };
   constexpr const color palette1 { 0xFFF0E0 };
@@ -660,14 +666,18 @@ static constexpr bool is_button_clicked(btn_state state, bool mouse_up) {
   return state == btn_state::down && mouse_up;
 }
 
+using callback = void (*)();
+
 struct button {
   box bounds;
   bool highlight;
   int id;
+  const char * text;
+  callback cb;
 };
-static constexpr btn_state button_state(const point & mouse, const button & btn, int cur_btn_id, bool mouse_lc) {
-  bool hover = in_box(mouse, btn.bounds);
-  bool pressing = hover && mouse_lc;
+static constexpr btn_state button_state(const mouse & mouse, const button & btn, int cur_btn_id) {
+  bool hover = in_box(mouse.pos, btn.bounds);
+  bool pressing = hover && mouse.clicked;
   bool current = pressing || (cur_btn_id == btn.id);
   if (current && hover) {
     return btn_state::down;
@@ -681,20 +691,141 @@ static constexpr btn_state button_state(const point & mouse, const button & btn,
   return btn_state::normal;
 }
 
+struct ui_bar {
+  box bounds;
+  color color;
+};
+struct ui_text {
+  point pos;
+  color color;
+  const char * text;
+};
+enum class ui_item_type { bar, text };
+struct ui_item { // NOLINT
+  union {
+    ui_bar bar;
+    ui_text text;
+  } data;
+  ui_item_type type;
+};
+static constexpr ui_item bar_item(const box & b, color c) {
+  return ui_item {
+    .data = { .bar = ui_bar { b, c } },
+    .type = ui_item_type::bar,
+  };
+}
+static constexpr ui_item text_item(const point & p, color c, const char * txt) {
+  return ui_item {
+    .data = { .text = ui_text { p, c, txt } },
+    .type = ui_item_type::text,
+  };
+}
+static constexpr point add(const point & p, int dx) {
+  return point { p.x + dx, p.y + dx };
+}
+static constexpr box extend(const box & b, int dx) {
+  return box { add(b.p1, -dx), add(b.p2, dx) };
+}
+
+template<unsigned Qty>
+struct ui_result {
+  std::array<ui_item, Qty> items;
+  std::optional<int> sel;
+  std::optional<callback> clicked;
+};
+
+static constexpr auto btn_ui_items(const button & btn, btn_state state) {
+  constexpr const auto btn_margin = 5;
+  auto colors = btn_colors_for_state(state);
+  return std::array {
+    bar_item(extend(btn.bounds, 1), colors.c1),
+    bar_item(btn.bounds, colors.c2),
+    text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text),
+  };
+}
+template<class Tp>
+static constexpr std::optional<Tp> cond(bool yes, Tp val) {
+  if (yes) return { val };
+  return {};
+}
+static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
+  auto state = button_state(ms, btn, cur_btn);
+  return ui_result<3> {
+    .items = btn_ui_items(btn, state),
+    .sel = cond(state == btn_state::down, btn.id),
+    .clicked = cond(is_button_clicked(state, !ms.down), btn.cb),
+  };
+}
+
+template<class Tp>
+static constexpr auto opt_chain(std::optional<Tp> a, std::optional<Tp> b) {
+  if (a) return a;
+  return b;
+}
+template<class Tp, auto A, auto B>
+static constexpr std::array<Tp, A + B> concat(const std::array<Tp, A> & a, const std::array<Tp, B> & b) {
+  std::array<Tp, A + B> result {};
+  std::copy(a.cbegin(), a.cend(), result.begin());
+  std::copy(b.cbegin(), b.cend(), result.begin() + A);
+  return result;
+}
+
+template<unsigned A, unsigned B>
+static constexpr ui_result<A + B> operator+(const ui_result<A> & a, const ui_result<B> b) {
+  return ui_result<A + B> {
+    .items = concat(a.items, b.items),
+    .sel = opt_chain(a.sel, b.sel),
+    .clicked = opt_chain(a.clicked, b.clicked),
+  };
+}
+
+constexpr auto btn(int cb, const mouse & m, int x, int y, bool highlight, const char * text, int id, callback call) {
+  constexpr const auto btn_w = 100;
+  constexpr const auto btn_h = 17;
+
+  button btn {
+    .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
+    .highlight = highlight,
+    .id = id,
+    .text = text,
+    .cb = call,
+  };
+  return imm_button(m, btn, cb);
+}
+
+void draw_item(const ui_item & i) {
+  switch (i.type) {
+  case ui_item_type::text: {
+    const auto & t = i.data.text; // NOLINT
+    DrawText(t.pos.x, t.pos.y, t.color, t.text);
+    break;
+  }
+  case ui_item_type::bar: {
+    const auto & t = i.data.bar; // NOLINT
+    DrawBar(t.bounds.p1.x, t.bounds.p1.y, t.bounds.p2.x - t.bounds.p1.x, t.bounds.p2.y - t.bounds.p1.y, t.color);
+    break;
+  }
+  }
+}
+
 bool Button(int x, int y, bool highlight, const char * text, int id) {
   constexpr const auto btn_w = 100;
   constexpr const auto btn_h = 17;
   constexpr const auto btn_margin = 5;
 
-  point mouse { mouse_x, mouse_y };
+  mouse ms {
+    .pos = { mouse_x, mouse_y },
+    .down = mouse_left,
+    .clicked = mouse_leftclick,
+  };
   button btn {
     .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
     .highlight = highlight,
     .id = id,
   };
-  auto state = button_state(mouse, btn, vcurbutton, mouse_leftclick);
-  auto colors = btn_colors_for_state(state);
+  auto state = button_state(ms, btn, vcurbutton);
 
+  auto colors = btn_colors_for_state(state);
   DrawBar(x - 1, y - 1, btn_w + 2, btn_h + 2, colors.c1);
   DrawBar(x, y, btn_w, btn_h, colors.c2);
   DrawText(x + btn_margin, y + btn_margin, colors.c3, text);
@@ -703,147 +834,205 @@ bool Button(int x, int y, bool highlight, const char * text, int id) {
   return is_button_clicked(state, !mouse_left);
 }
 
-void DrawGenerators() {
-  static constexpr const auto categories = std::array {
-    "PICKUP/COIN", "LASER/SHOOT", "EXPLOSION", "POWERUP", "HIT/HURT", "JUMP", "BLIP/SELECT",
-  };
-  for (int i = 0; i < categories.size(); i++) {
-    if (Button(5, 35 + i * 30, false, categories[i], 300 + i)) {
-      switch (i) {
-      case 0: // pickup/coin
-        ResetParams();
-        p_base_freq = 0.4f + frnd(0.5f);
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.1f);
-        p_env_decay = 0.1f + frnd(0.4f);
-        p_env_punch = 0.3f + frnd(0.3f);
-        if (rnd(1)) {
-          p_arp_speed = 0.5f + frnd(0.2f);
-          p_arp_mod = 0.2f + frnd(0.4f);
-        }
-        break;
-      case 1: // laser/shoot
-        ResetParams();
-        wave_type = rnd(2);
-        if (wave_type == 2 && rnd(1)) wave_type = rnd(1);
-        p_base_freq = 0.5f + frnd(0.5f);
-        p_freq_limit = p_base_freq - 0.2f - frnd(0.6f);
-        if (p_freq_limit < 0.2f) p_freq_limit = 0.2f;
-        p_freq_ramp = -0.15f - frnd(0.2f);
-        if (rnd(2) == 0) {
-          p_base_freq = 0.3f + frnd(0.6f);
-          p_freq_limit = frnd(0.1f);
-          p_freq_ramp = -0.35f - frnd(0.3f);
-        }
-        if (rnd(1)) {
-          p_duty = frnd(0.5f);
-          p_duty_ramp = frnd(0.2f);
-        } else {
-          p_duty = 0.4f + frnd(0.5f);
-          p_duty_ramp = -frnd(0.7f);
-        }
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.2f);
-        p_env_decay = frnd(0.4f);
-        if (rnd(1)) p_env_punch = frnd(0.3f);
-        if (rnd(2) == 0) {
-          p_pha_offset = frnd(0.2f);
-          p_pha_ramp = -frnd(0.2f);
-        }
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        break;
-      case 2: // explosion
-        ResetParams();
-        wave_type = 3;
-        if (rnd(1)) {
-          p_base_freq = 0.1f + frnd(0.4f);
-          p_freq_ramp = -0.1f + frnd(0.4f);
-        } else {
-          p_base_freq = 0.2f + frnd(0.7f);
-          p_freq_ramp = -0.2f - frnd(0.2f);
-        }
-        p_base_freq *= p_base_freq;
-        if (rnd(4) == 0) p_freq_ramp = 0.0f;
-        if (rnd(2) == 0) p_repeat_speed = 0.3f + frnd(0.5f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.3f);
-        p_env_decay = frnd(0.5f);
-        if (rnd(1) == 0) {
-          p_pha_offset = -0.3f + frnd(0.9f);
-          p_pha_ramp = -frnd(0.3f);
-        }
-        p_env_punch = 0.2f + frnd(0.6f);
-        if (rnd(1)) {
-          p_vib_strength = frnd(0.7f);
-          p_vib_speed = frnd(0.6f);
-        }
-        if (rnd(2) == 0) {
-          p_arp_speed = 0.6f + frnd(0.3f);
-          p_arp_mod = 0.8f - frnd(1.6f);
-        }
-        break;
-      case 3: // powerup
-        ResetParams();
-        if (rnd(1))
-          wave_type = 1;
-        else
-          p_duty = frnd(0.6f);
-        if (rnd(1)) {
-          p_base_freq = 0.2f + frnd(0.3f);
-          p_freq_ramp = 0.1f + frnd(0.4f);
-          p_repeat_speed = 0.4f + frnd(0.4f);
-        } else {
-          p_base_freq = 0.2f + frnd(0.3f);
-          p_freq_ramp = 0.05f + frnd(0.2f);
-          if (rnd(1)) {
-            p_vib_strength = frnd(0.7f);
-            p_vib_speed = frnd(0.6f);
-          }
-        }
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.4f);
-        p_env_decay = 0.1f + frnd(0.4f);
-        break;
-      case 4: // hit/hurt
-        ResetParams();
-        wave_type = rnd(2);
-        if (wave_type == 2) wave_type = 3;
-        if (wave_type == 0) p_duty = frnd(0.6f);
-        p_base_freq = 0.2f + frnd(0.6f);
-        p_freq_ramp = -0.3f - frnd(0.4f);
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.1f);
-        p_env_decay = 0.1f + frnd(0.2f);
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        break;
-      case 5: // jump
-        ResetParams();
-        wave_type = 0;
-        p_duty = frnd(0.6f);
-        p_base_freq = 0.3f + frnd(0.3f);
-        p_freq_ramp = 0.1f + frnd(0.2f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.3f);
-        p_env_decay = 0.1f + frnd(0.2f);
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        if (rnd(1)) p_lpf_freq = 1.0f - frnd(0.6f);
-        break;
-      case 6: // blip/select
-        ResetParams();
-        wave_type = rnd(1);
-        if (wave_type == 0) p_duty = frnd(0.6f);
-        p_base_freq = 0.2f + frnd(0.4f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.1f);
-        p_env_decay = frnd(0.2f);
-        p_hpf_freq = 0.1f;
-        break;
-      default:
-        break;
-      }
-      PlaySample();
+static void do_pickup_coin() {
+  ResetParams();
+  p_base_freq = 0.4f + frnd(0.5f);
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.1f);
+  p_env_decay = 0.1f + frnd(0.4f);
+  p_env_punch = 0.3f + frnd(0.3f);
+  if (rnd(1)) {
+    p_arp_speed = 0.5f + frnd(0.2f);
+    p_arp_mod = 0.2f + frnd(0.4f);
+  }
+  PlaySample();
+}
+static void do_laser_shoot() {
+  ResetParams();
+  wave_type = rnd(2);
+  if (wave_type == 2 && rnd(1)) wave_type = rnd(1);
+  p_base_freq = 0.5f + frnd(0.5f);
+  p_freq_limit = p_base_freq - 0.2f - frnd(0.6f);
+  if (p_freq_limit < 0.2f) p_freq_limit = 0.2f;
+  p_freq_ramp = -0.15f - frnd(0.2f);
+  if (rnd(2) == 0) {
+    p_base_freq = 0.3f + frnd(0.6f);
+    p_freq_limit = frnd(0.1f);
+    p_freq_ramp = -0.35f - frnd(0.3f);
+  }
+  if (rnd(1)) {
+    p_duty = frnd(0.5f);
+    p_duty_ramp = frnd(0.2f);
+  } else {
+    p_duty = 0.4f + frnd(0.5f);
+    p_duty_ramp = -frnd(0.7f);
+  }
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.2f);
+  p_env_decay = frnd(0.4f);
+  if (rnd(1)) p_env_punch = frnd(0.3f);
+  if (rnd(2) == 0) {
+    p_pha_offset = frnd(0.2f);
+    p_pha_ramp = -frnd(0.2f);
+  }
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+  PlaySample();
+}
+static void do_explosion() {
+  ResetParams();
+  wave_type = 3;
+  if (rnd(1)) {
+    p_base_freq = 0.1f + frnd(0.4f);
+    p_freq_ramp = -0.1f + frnd(0.4f);
+  } else {
+    p_base_freq = 0.2f + frnd(0.7f);
+    p_freq_ramp = -0.2f - frnd(0.2f);
+  }
+  p_base_freq *= p_base_freq;
+  if (rnd(4) == 0) p_freq_ramp = 0.0f;
+  if (rnd(2) == 0) p_repeat_speed = 0.3f + frnd(0.5f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.3f);
+  p_env_decay = frnd(0.5f);
+  if (rnd(1) == 0) {
+    p_pha_offset = -0.3f + frnd(0.9f);
+    p_pha_ramp = -frnd(0.3f);
+  }
+  p_env_punch = 0.2f + frnd(0.6f);
+  if (rnd(1)) {
+    p_vib_strength = frnd(0.7f);
+    p_vib_speed = frnd(0.6f);
+  }
+  if (rnd(2) == 0) {
+    p_arp_speed = 0.6f + frnd(0.3f);
+    p_arp_mod = 0.8f - frnd(1.6f);
+  }
+  PlaySample();
+}
+static void do_powerup() {
+  ResetParams();
+  if (rnd(1))
+    wave_type = 1;
+  else
+    p_duty = frnd(0.6f);
+  if (rnd(1)) {
+    p_base_freq = 0.2f + frnd(0.3f);
+    p_freq_ramp = 0.1f + frnd(0.4f);
+    p_repeat_speed = 0.4f + frnd(0.4f);
+  } else {
+    p_base_freq = 0.2f + frnd(0.3f);
+    p_freq_ramp = 0.05f + frnd(0.2f);
+    if (rnd(1)) {
+      p_vib_strength = frnd(0.7f);
+      p_vib_speed = frnd(0.6f);
     }
   }
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.4f);
+  p_env_decay = 0.1f + frnd(0.4f);
+  PlaySample();
+}
+static void do_hit_hurt() {
+  ResetParams();
+  wave_type = rnd(2);
+  if (wave_type == 2) wave_type = 3;
+  if (wave_type == 0) p_duty = frnd(0.6f);
+  p_base_freq = 0.2f + frnd(0.6f);
+  p_freq_ramp = -0.3f - frnd(0.4f);
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.1f);
+  p_env_decay = 0.1f + frnd(0.2f);
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+  PlaySample();
+}
+static void do_jump() {
+  ResetParams();
+  wave_type = 0;
+  p_duty = frnd(0.6f);
+  p_base_freq = 0.3f + frnd(0.3f);
+  p_freq_ramp = 0.1f + frnd(0.2f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.3f);
+  p_env_decay = 0.1f + frnd(0.2f);
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+  if (rnd(1)) p_lpf_freq = 1.0f - frnd(0.6f);
+  PlaySample();
+}
+static void do_blip_select() {
+  ResetParams();
+  wave_type = rnd(1);
+  if (wave_type == 0) p_duty = frnd(0.6f);
+  p_base_freq = 0.2f + frnd(0.4f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.1f);
+  p_env_decay = frnd(0.2f);
+  p_hpf_freq = 0.1f;
+  PlaySample();
+}
+
+struct gen_btn {
+  const char * name;
+  callback cb;
+};
+class count_iter {
+  int idx {};
+
+public:
+  [[nodiscard]] constexpr auto operator*() const noexcept {
+    return idx;
+  }
+  [[nodiscard]] constexpr count_iter & operator++() noexcept {
+    idx++;
+    return *this;
+  }
+  [[nodiscard]] constexpr count_iter operator++(int) noexcept { // NOLINT
+    count_iter res = *this;
+    idx++;
+    return res;
+  }
+};
+template<class To, class From, auto N, class Fn>
+static constexpr std::array<To, N> convert(const std::array<From, N> & from, Fn && fn) {
+  std::array<To, N> to {};
+  std::transform(from.begin(), from.end(), count_iter {}, to.begin(), fn);
+  return to;
+}
+template<class Arr, typename T, T... idxs>
+static constexpr auto sum_all(const Arr & arr, std::integer_sequence<T, idxs...> /*seq*/) {
+  return (arr[idxs] + ...);
+}
+template<class Arr>
+static constexpr auto sum_all(const Arr & arr) {
+  return sum_all(arr, std::make_integer_sequence<int, Arr().size()>());
+}
+static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
+  constexpr const auto categories = std::array {
+    gen_btn { "PICKUP/COIN", do_pickup_coin }, gen_btn { "LASER/SHOOT", do_laser_shoot },
+    gen_btn { "EXPLOSION", do_explosion },     gen_btn { "POWERUP", do_powerup },
+    gen_btn { "HIT/HURT", do_hit_hurt },       gen_btn { "JUMP", do_jump },
+    gen_btn { "BLIP/SELECT", do_blip_select },
+  };
+  const auto btns = convert<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
+    constexpr auto base_idx = 300;
+    constexpr auto base_y = 35;
+    constexpr auto step = 30;
+    constexpr auto x = 5;
+    return btn(cb, ms, x, base_y + idx * step, false, cat.name, base_idx + idx, cat.cb);
+  });
+  return sum_all(btns);
+}
+void DrawGenerators() {
+  const mouse ms {
+    .pos = { mouse_x, mouse_y },
+    .down = mouse_left,
+    .clicked = mouse_leftclick,
+  };
+  const auto ui = draw_gen_btns(vcurbutton, ms);
+  for (const auto & u : ui.items) {
+    draw_item(u);
+  }
+  if (ui.sel) vcurbutton = ui.sel.value();
+  if (ui.clicked) ui.clicked.value()();
 }
 
 int drawcount = 0;
