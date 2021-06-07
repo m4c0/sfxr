@@ -613,28 +613,6 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
 #include "ui.hpp"
 #include "utils.hpp"
 
-static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
-  auto state = button_state(ms, btn, cur_btn);
-  return ui_result<3> {
-    .items = btn_ui_items(btn, state),
-    .sel = cond(state == btn_state::down, btn.id),
-    .clicked = cond(is_button_clicked(state, !ms.down), btn.cb),
-  };
-}
-
-static constexpr auto btn(int x, int y, bool highlight, const char * text, int id, ui_callback call) {
-  constexpr const auto btn_w = 100;
-  constexpr const auto btn_h = 17;
-
-  return button {
-    .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
-    .highlight = highlight,
-    .id = id,
-    .text = text,
-    .cb = call,
-  };
-}
-
 void draw_item(const ui_item & i) {
   switch (i.type) {
   case ui_item_type::text: {

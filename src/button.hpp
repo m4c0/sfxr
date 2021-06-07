@@ -30,6 +30,19 @@ struct button {
   ui_callback cb;
 };
 
+static constexpr auto btn(int x, int y, bool highlight, const char * text, int id, ui_callback call) {
+  constexpr const auto btn_w = 100;
+  constexpr const auto btn_h = 17;
+
+  return button {
+    .bounds = box { { x, y }, { x + btn_w, y + btn_h } },
+    .highlight = highlight,
+    .id = id,
+    .text = text,
+    .cb = call,
+  };
+}
+
 static constexpr btn_colors btn_colors_for_state(btn_state state) {
   constexpr const ui_color palette0 { 0xA09088 };
   constexpr const ui_color palette1 { 0xFFF0E0 };
@@ -73,5 +86,14 @@ static constexpr auto btn_ui_items(const button & btn, btn_state state) {
     bar_item(extend(btn.bounds, 1), colors.c1),
     bar_item(btn.bounds, colors.c2),
     text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text),
+  };
+}
+
+static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
+  auto state = button_state(ms, btn, cur_btn);
+  return ui_result<3> {
+    .items = btn_ui_items(btn, state),
+    .sel = cond(state == btn_state::down, btn.id),
+    .clicked = cond(is_button_clicked(state, !ms.down), btn.cb),
   };
 }
