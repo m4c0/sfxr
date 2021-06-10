@@ -800,7 +800,7 @@ static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
     gen_btn { "HIT/HURT", do_hit_hurt },       gen_btn { "JUMP", do_jump },
     gen_btn { "BLIP/SELECT", do_blip_select },
   };
-  const auto btns = convert_indexed<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
+  return convert_indexed<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
     constexpr auto base_idx = 300;
     constexpr auto base_y = 35;
     constexpr auto step = 30;
@@ -808,15 +808,40 @@ static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
     const auto b = btn(x, base_y + idx * step, false, cat.name, base_idx + idx, cat.cb);
     return imm_button(ms, b, cb);
   });
-  return sum_all(btns);
 }
-void DrawGenerators() {
+
+template<auto WaveType>
+static constexpr void set_wave_type() {
+  wave_type = WaveType;
+}
+template<auto WaveType>
+static constexpr auto wave_btn(const char * label) {
+  return gen_btn { label, set_wave_type<WaveType> };
+}
+static constexpr auto draw_waveform_btns(const int cb, const mouse & ms) {
+  constexpr const auto waveforms = std::array {
+    wave_btn<0>("SQUAREWAVE"),
+    wave_btn<1>("SAWTOOTH"),
+    wave_btn<2>("SINEWAVE"),
+    wave_btn<3>("NOISE"),
+  };
+  return convert_indexed<ui_result<3>>(waveforms, [=](const auto & cat, auto idx) {
+    constexpr auto base_idx = 400;
+    constexpr auto base_x = 130;
+    constexpr auto step = 120;
+    constexpr auto y = 30;
+    const auto b = btn(base_x + idx * step, y, wave_type == idx, cat.name, base_idx + idx, cat.cb);
+    return imm_button(ms, b, cb);
+  });
+}
+
+void DrawButtons() {
   const mouse ms {
     .pos = { mouse_x, mouse_y },
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  run_result(draw_gen_btns(vcurbutton, ms));
+  run_result(sum_all(concat(draw_gen_btns(vcurbutton, ms), draw_waveform_btns(vcurbutton, ms))));
 }
 
 int drawcount = 0;
@@ -851,17 +876,12 @@ void DrawScreen() {
 
   ClearScreen(0xC0B090);
 
+  DrawButtons();
   DrawText(10, 10, 0x504030, "GENERATOR");
-  DrawGenerators();
 
   DrawBar(110, 0, 2, 480, 0x000000);
   DrawText(120, 10, 0x504030, "MANUAL SETTINGS");
   DrawSprite(ld48, 8, 440, 0, 0xB0A080);
-
-  if (Button(130, 30, wave_type == 0, "SQUAREWAVE", 10)) wave_type = 0;
-  if (Button(250, 30, wave_type == 1, "SAWTOOTH", 11)) wave_type = 1;
-  if (Button(370, 30, wave_type == 2, "SINEWAVE", 12)) wave_type = 2;
-  if (Button(490, 30, wave_type == 3, "NOISE", 13)) wave_type = 3;
 
   bool do_play = false;
 
