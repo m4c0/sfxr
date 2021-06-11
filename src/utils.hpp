@@ -39,6 +39,12 @@ public:
   }
 };
 template<class To, class From, auto N, class Fn>
+static constexpr std::array<To, N> convert(const std::array<From, N> & from, Fn && fn) {
+  std::array<To, N> to {};
+  std::transform(from.begin(), from.end(), to.begin(), fn);
+  return to;
+}
+template<class To, class From, auto N, class Fn>
 static constexpr std::array<To, N> convert_indexed(const std::array<From, N> & from, Fn && fn) {
   std::array<To, N> to {};
   std::transform(from.begin(), from.end(), count_iter {}, to.begin(), fn);

@@ -640,13 +640,16 @@ void run_result(const ui_result<N> & ui) {
   if (ui.clicked) ui.clicked.value()();
 }
 
-bool Button(int x, int y, bool highlight, const char * text, int id) {
+static constexpr auto always_false() noexcept {
+  return false;
+}
+bool Button(int x, int y, const char * text, int id) {
   mouse ms {
     .pos = { mouse_x, mouse_y },
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  auto b = btn(x, y, highlight, text, id, [] {
+  auto b = btn(x, y, always_false, text, id, [] {
   });
   auto imm = imm_button(ms, b, vcurbutton);
   run_result(imm);
@@ -790,48 +793,53 @@ static void do_blip_select() {
 }
 
 struct gen_btn {
-  const char * name;
-  ui_callback cb;
+  const char * name {};
+  ui_callback cb {};
+  btn_is_hl hl = always_false;
 };
-static constexpr auto draw_gen_btns(const int cb, const mouse & ms) {
+static constexpr auto gen_btns() {
   constexpr const auto categories = std::array {
     gen_btn { "PICKUP/COIN", do_pickup_coin }, gen_btn { "LASER/SHOOT", do_laser_shoot },
     gen_btn { "EXPLOSION", do_explosion },     gen_btn { "POWERUP", do_powerup },
     gen_btn { "HIT/HURT", do_hit_hurt },       gen_btn { "JUMP", do_jump },
     gen_btn { "BLIP/SELECT", do_blip_select },
   };
-  return convert_indexed<ui_result<3>>(categories, [=](const auto & cat, auto idx) {
+  return convert_indexed<button>(categories, [](const auto & cat, auto idx) {
     constexpr auto base_idx = 300;
     constexpr auto base_y = 35;
     constexpr auto step = 30;
     constexpr auto x = 5;
-    const auto b = btn(x, base_y + idx * step, false, cat.name, base_idx + idx, cat.cb);
-    return imm_button(ms, b, cb);
+    return btn(x, base_y + idx * step, cat.hl, cat.name, base_idx + idx, cat.cb);
   });
 }
 
 template<auto WaveType>
-static constexpr void set_wave_type() {
-  wave_type = WaveType;
-}
-template<auto WaveType>
-static constexpr auto wave_btn(const char * label) {
-  return gen_btn { label, set_wave_type<WaveType> };
-}
-static constexpr auto draw_waveform_btns(const int cb, const mouse & ms) {
+class wave_btn {
+  static constexpr void set_wave_type() {
+    wave_type = WaveType;
+  }
+  static bool is_wave_sel() {
+    return wave_type == WaveType;
+  }
+
+public:
+  static constexpr auto create(const char * label) {
+    return gen_btn { label, set_wave_type, is_wave_sel };
+  }
+};
+static constexpr auto waveform_btns() {
   constexpr const auto waveforms = std::array {
-    wave_btn<0>("SQUAREWAVE"),
-    wave_btn<1>("SAWTOOTH"),
-    wave_btn<2>("SINEWAVE"),
-    wave_btn<3>("NOISE"),
+    wave_btn<0>::create("SQUAREWAVE"),
+    wave_btn<1>::create("SAWTOOTH"),
+    wave_btn<2>::create("SINEWAVE"),
+    wave_btn<3>::create("NOISE"),
   };
-  return convert_indexed<ui_result<3>>(waveforms, [=](const auto & cat, auto idx) {
+  return convert_indexed<button>(waveforms, [](const auto & cat, auto idx) {
     constexpr auto base_idx = 400;
     constexpr auto base_x = 130;
     constexpr auto step = 120;
     constexpr auto y = 30;
-    const auto b = btn(base_x + idx * step, y, wave_type == idx, cat.name, base_idx + idx, cat.cb);
-    return imm_button(ms, b, cb);
+    return btn(base_x + idx * step, y, cat.hl, cat.name, base_idx + idx, cat.cb);
   });
 }
 
@@ -841,7 +849,11 @@ void DrawButtons() {
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  run_result(sum_all(concat(draw_gen_btns(vcurbutton, ms), draw_waveform_btns(vcurbutton, ms))));
+  constexpr const auto btns = concat(gen_btns(), waveform_btns());
+  const auto ui_res = convert<ui_result<3>>(btns, [&](const auto & b) {
+    return imm_button(ms, b, vcurbutton);
+  });
+  run_result(sum_all(ui_res));
 }
 
 int drawcount = 0;
@@ -886,7 +898,7 @@ void DrawScreen() {
   bool do_play = false;
 
   DrawBar(5 - 1 - 1, 412 - 1 - 1, 102 + 2, 19 + 2, 0x000000);
-  if (Button(5, 412, false, "RANDOMIZE", 40)) {
+  if (Button(5, 412, "RANDOMIZE", 40)) {
     p_base_freq = pow(frnd(2.0f) - 1.0f, 2.0f);
     if (rnd(1)) p_base_freq = pow(frnd(2.0f) - 1.0f, 3.0f) + 0.5f;
     p_freq_limit = 0.0f;
@@ -921,7 +933,7 @@ void DrawScreen() {
     do_play = true;
   }
 
-  if (Button(5, 382, false, "MUTATE", 30)) {
+  if (Button(5, 382, "MUTATE", 30)) {
     if (rnd(1)) p_base_freq += frnd(0.1f) - 0.05f;
     //		if(rnd(1)) p_freq_limit+=frnd(0.1f)-0.05f;
     if (rnd(1)) p_freq_ramp += frnd(0.1f) - 0.05f;
@@ -953,9 +965,9 @@ void DrawScreen() {
   DrawBar(490 - 1 - 1 + 60 + 68, 180 - 1 + 5, 2, 205, 0x000000);
   DrawBar(490 - 1 - 1 + 60, 180 - 1, 42 + 2, 10 + 2, 0xFF0000);
   Slider(490, 180, sound_vol, false, " ");
-  if (Button(490, 200, false, "PLAY SOUND", 20)) PlaySample();
+  if (Button(490, 200, "PLAY SOUND", 20)) PlaySample();
 
-  if (Button(490, 290, false, "LOAD SOUND", 14)) {
+  if (Button(490, 290, "LOAD SOUND", 14)) {
     char filename[256];
     if (FileSelectorLoad(hWndMain, filename, 1)) // WIN32
     {
@@ -964,7 +976,7 @@ void DrawScreen() {
       PlaySample();
     }
   }
-  if (Button(490, 320, false, "SAVE SOUND", 15)) {
+  if (Button(490, 320, "SAVE SOUND", 15)) {
     char filename[256];
     if (FileSelectorSave(hWndMain, filename, 1)) // WIN32
       SaveSettings(filename);
@@ -972,21 +984,21 @@ void DrawScreen() {
 
   DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, 0x000000);
   DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, 0x000000);
-  if (Button(490, 380, false, "EXPORT .WAV", 16)) {
+  if (Button(490, 380, "EXPORT .WAV", 16)) {
     char filename[256];
     if (FileSelectorSave(hWndMain, filename, 0)) // WIN32
       ExportWAV(filename);
   }
   char str[10];
   sprintf(str, "%i HZ", wav_freq);
-  if (Button(490, 410, false, str, 18)) {
+  if (Button(490, 410, str, 18)) {
     if (wav_freq == 44100)
       wav_freq = 22050;
     else
       wav_freq = 44100;
   }
   sprintf(str, "%i-BIT", wav_bits);
-  if (Button(490, 440, false, str, 19)) {
+  if (Button(490, 440, str, 19)) {
     if (wav_bits == 16)
       wav_bits = 8;
     else
