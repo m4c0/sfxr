@@ -13,6 +13,7 @@ enum class btn_state {
   normal,
   hover,
   down,
+  clicked, // same as down, when the mouse is not down anymore
   highlight,
 };
 
@@ -56,20 +57,27 @@ static constexpr btn_colors btn_colors_for_state(btn_state state) {
     return { palette2, palette2, palette0 };
   case btn_state::highlight:
     return { palette2, palette3, palette1 };
+  case btn_state::clicked: // TODO: different color, maybe?
   case btn_state::down:
     return { palette0, palette1, palette0 };
   };
 }
-static constexpr bool is_button_clicked(btn_state state, bool mouse_up) {
-  return state == btn_state::down && mouse_up;
+static constexpr bool is_button_clicked(btn_state state) {
+  return state == btn_state::clicked;
+}
+static constexpr bool is_button_down(btn_state state) {
+  return state == btn_state::down;
 }
 
 static constexpr btn_state imm_button_state(const mouse & mouse, const button & btn, int cur_btn_id) {
   bool hover = in_box(mouse.pos, btn.bounds);
   bool pressing = hover && mouse.clicked;
   bool current = pressing || (cur_btn_id == btn.id);
-  if (current && hover) {
+  if (current && hover && mouse.down) {
     return btn_state::down;
+  }
+  if (current && hover) {
+    return btn_state::clicked;
   }
   if (hover) {
     return btn_state::hover;
@@ -80,9 +88,8 @@ static constexpr btn_state imm_button_state(const mouse & mouse, const button & 
   return btn_state::normal;
 }
 
-static constexpr auto btn_ui_items(const button & btn, btn_state state) {
+static constexpr auto btn_ui_items(const button & btn, const btn_colors & colors) {
   constexpr const auto btn_margin = 5;
-  auto colors = btn_colors_for_state(state);
   return std::array {
     bar_item(extend(btn.bounds, 1), colors.c1),
     bar_item(btn.bounds, colors.c2),
@@ -92,9 +99,10 @@ static constexpr auto btn_ui_items(const button & btn, btn_state state) {
 
 static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
   auto state = imm_button_state(ms, btn, cur_btn);
+  auto colors = btn_colors_for_state(state);
   return ui_result<3> {
-    .items = btn_ui_items(btn, state),
-    .sel = cond(state == btn_state::down, btn.id),
-    .clicked = cond(is_button_clicked(state, !ms.down), btn.cb),
+    .items = btn_ui_items(btn, colors),
+    .sel = cond(is_button_down(state), btn.id),
+    .clicked = cond(is_button_clicked(state), btn.cb),
   };
 }
