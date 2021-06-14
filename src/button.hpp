@@ -88,20 +88,45 @@ static constexpr btn_state imm_button_state(const mouse & mouse, const button & 
   return btn_state::normal;
 }
 
-static constexpr auto btn_ui_items(const button & btn, const btn_colors & colors) {
-  constexpr const auto btn_margin = 5;
+static constexpr const auto btn_margin = 5;
+static constexpr auto btn_ui_bars(const button & btn, const btn_colors & colors) {
   return std::array {
     bar_item(extend(btn.bounds, 1), colors.c1),
     bar_item(btn.bounds, colors.c2),
+  };
+}
+static constexpr auto btn_ui_text(const button & btn, const btn_colors & colors) {
+  return std::array {
     text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text),
   };
 }
-
-static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
-  auto state = imm_button_state(ms, btn, cur_btn);
-  return ui_result<3> {
-    .items = btn_ui_items(btn, btn_colors_for_state(state)),
+static constexpr auto btn_ui_result(const button & btn, btn_state state) {
+  return ui_result {
     .sel = cond(is_button_down(state), btn.id),
     .clicked = cond(is_button_clicked(state), btn.cb),
+  };
+}
+
+template<auto N = 1>
+struct btn_ui {
+  std::array<ui_bar, 2 * N> bars {};
+  std::array<ui_text, N> texts {};
+  ui_result result {};
+};
+static constexpr auto make_btn_ui(const mouse & ms, const button & btn, int cur_btn) {
+  const auto state = imm_button_state(ms, btn, cur_btn);
+  const auto colors = btn_colors_for_state(state);
+  return btn_ui<> {
+    .bars = btn_ui_bars(btn, colors),
+    .texts = btn_ui_text(btn, colors),
+    .result = btn_ui_result(btn, state),
+  };
+}
+template<auto A, auto B>
+static constexpr auto operator+(const btn_ui<A> & a, const btn_ui<B> & b) {
+  return btn_ui<A + B> {
+    .bars = concat(a.bars, b.bars),
+    .texts = concat(a.texts, b.texts),
+    .result = a.result + b.result,
   };
 }

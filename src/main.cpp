@@ -848,29 +848,27 @@ static void do_change_bitrate() {
 #include "ui.hpp"
 #include "utils.hpp"
 
-void draw_item(const ui_item & i) {
-  switch (i.type) {
-  case ui_item_type::text: {
-    const auto & t = i.data.text; // NOLINT
-    DrawText(t.pos.x, t.pos.y, t.color, t.text);
-    break;
-  }
-  case ui_item_type::bar: {
-    const auto & t = i.data.bar; // NOLINT
-    DrawBar(t.bounds.p1.x, t.bounds.p1.y, t.bounds.p2.x - t.bounds.p1.x, t.bounds.p2.y - t.bounds.p1.y, t.color);
-    break;
-  }
+void draw_bar(const ui_bar & t) {
+  DrawBar(t.bounds.p1.x, t.bounds.p1.y, t.bounds.p2.x - t.bounds.p1.x, t.bounds.p2.y - t.bounds.p1.y, t.color);
+}
+template<typename List>
+void draw_bars(List && ui) {
+  for (const auto & u : ui) {
+    draw_bar(u);
   }
 }
-template<auto N>
-void draw_items(const ui_result<N> & ui) {
-  for (const auto & u : ui.items) {
-    draw_item(u);
+
+void draw_text(const ui_text & t) {
+  DrawText(t.pos.x, t.pos.y, t.color, t.text);
+}
+template<typename List>
+void draw_texts(List && ui) {
+  for (const auto & u : ui) {
+    draw_text(u);
   }
 }
-template<auto N>
-void run_result(const ui_result<N> & ui) {
-  draw_items(ui);
+
+void run_result(const ui_result & ui) {
   if (ui.sel) vcurbutton = ui.sel.value();
   if (ui.clicked) ui.clicked.value()();
 }
@@ -942,33 +940,11 @@ static constexpr auto other_btns() {
   return list;
 }
 
-void DrawButtons() {
-  const mouse ms {
-    .pos = { mouse_x, mouse_y },
-    .down = mouse_left,
-    .clicked = mouse_leftclick,
-  };
-  constexpr const auto btns = concat(gen_btns(), waveform_btns(), other_btns());
-  const auto ui_res = convert<ui_result<3>>(btns, [&](const auto & b) {
-    return imm_button(ms, b, vcurbutton);
-  });
-  run_result(sum_all(ui_res));
-}
-bool Button(int x, int y, const char * text, int id) {
-  mouse ms {
-    .pos = { mouse_x, mouse_y },
-    .down = mouse_left,
-    .clicked = mouse_leftclick,
-  };
-  auto b = btn(x, y, always_false, text, id, [] {
-  });
-  auto imm = imm_button(ms, b, vcurbutton);
-  run_result(imm);
-  return imm.sel.value_or(id + 1) == id;
-}
-
-int drawcount = 0;
-
+struct dyn_btn {
+  int y;
+  const char * (*label)();
+  ui_callback cb;
+};
 static const char * freq_label() {
   static std::string str;
   str = std::to_string(wav_freq) + " HZ";
@@ -979,6 +955,35 @@ static const char * bits_label() {
   str = std::to_string(wav_bits) + "-BIT";
   return str.c_str();
 }
+static constexpr auto dyn_btns() {
+  constexpr const auto list = std::array {
+    dyn_btn { 410, freq_label, do_change_freq },
+    dyn_btn { 440, bits_label, do_change_bitrate },
+  };
+  return convert_indexed<button>(list, [](const auto & cat, auto idx) {
+    constexpr const auto x = 490;
+    constexpr const auto base_idx = 500;
+    return btn(x, cat.y, always_false, cat.label(), base_idx + idx, cat.cb);
+  });
+}
+
+template<auto N>
+void run_buttons(const btn_ui<N> & ui) {
+  draw_bars(ui.bars);
+  draw_texts(ui.texts);
+  run_result(ui.result);
+}
+void DrawButtons(const mouse & ms) {
+  constexpr const auto static_btns = concat(gen_btns(), waveform_btns(), other_btns());
+  const auto btns = concat(static_btns, dyn_btns());
+  const auto ui_res = sum_all(convert<btn_ui<1>>(btns, [&](const auto & b) {
+    return make_btn_ui(ms, b, vcurbutton);
+  }));
+  run_buttons(ui_res);
+}
+
+int drawcount = 0;
+
 void DrawScreen() {
   bool redraw = true;
   if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
@@ -1026,9 +1031,12 @@ void DrawScreen() {
   DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, 0x000000);
   DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, 0x000000);
 
-  DrawButtons();
-  if (Button(490, 410, freq_label(), 18)) do_change_freq();
-  if (Button(490, 440, bits_label(), 19)) do_change_bitrate();
+  const mouse ms {
+    .pos = { mouse_x, mouse_y },
+    .down = mouse_left,
+    .clicked = mouse_leftclick,
+  };
+  DrawButtons(ms);
 
   int ypos = 4;
 
