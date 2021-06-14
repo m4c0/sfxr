@@ -608,54 +608,6 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   DrawText(x - 4 - strlen(text) * 8, y + 1, tcol, text);
 }
 
-#include "button.hpp"
-#include "geom.hpp"
-#include "ui.hpp"
-#include "utils.hpp"
-
-void draw_item(const ui_item & i) {
-  switch (i.type) {
-  case ui_item_type::text: {
-    const auto & t = i.data.text; // NOLINT
-    DrawText(t.pos.x, t.pos.y, t.color, t.text);
-    break;
-  }
-  case ui_item_type::bar: {
-    const auto & t = i.data.bar; // NOLINT
-    DrawBar(t.bounds.p1.x, t.bounds.p1.y, t.bounds.p2.x - t.bounds.p1.x, t.bounds.p2.y - t.bounds.p1.y, t.color);
-    break;
-  }
-  }
-}
-template<auto N>
-void draw_items(const ui_result<N> & ui) {
-  for (const auto & u : ui.items) {
-    draw_item(u);
-  }
-}
-template<auto N>
-void run_result(const ui_result<N> & ui) {
-  draw_items(ui);
-  if (ui.sel) vcurbutton = ui.sel.value();
-  if (ui.clicked) ui.clicked.value()();
-}
-
-static constexpr auto always_false() noexcept {
-  return false;
-}
-bool Button(int x, int y, const char * text, int id) {
-  mouse ms {
-    .pos = { mouse_x, mouse_y },
-    .down = mouse_left,
-    .clicked = mouse_leftclick,
-  };
-  auto b = btn(x, y, always_false, text, id, [] {
-  });
-  auto imm = imm_button(ms, b, vcurbutton);
-  run_result(imm);
-  return imm.sel.value_or(id + 1) == id;
-}
-
 static void do_pickup_coin() {
   ResetParams();
   p_base_freq = 0.4f + frnd(0.5f);
@@ -792,6 +744,141 @@ static void do_blip_select() {
   PlaySample();
 }
 
+static void do_randomize() {
+  p_base_freq = pow(frnd(2.0f) - 1.0f, 2.0f);
+  if (rnd(1)) p_base_freq = pow(frnd(2.0f) - 1.0f, 3.0f) + 0.5f;
+  p_freq_limit = 0.0f;
+  p_freq_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
+  if (p_base_freq > 0.7f && p_freq_ramp > 0.2f) p_freq_ramp = -p_freq_ramp;
+  if (p_base_freq < 0.2f && p_freq_ramp < -0.05f) p_freq_ramp = -p_freq_ramp;
+  p_freq_dramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_duty = frnd(2.0f) - 1.0f;
+  p_duty_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_vib_strength = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_vib_speed = frnd(2.0f) - 1.0f;
+  p_vib_delay = frnd(2.0f) - 1.0f;
+  p_env_attack = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_env_sustain = pow(frnd(2.0f) - 1.0f, 2.0f);
+  p_env_decay = frnd(2.0f) - 1.0f;
+  p_env_punch = pow(frnd(0.8f), 2.0f);
+  if (p_env_attack + p_env_sustain + p_env_decay < 0.2f) {
+    p_env_sustain += 0.2f + frnd(0.3f);
+    p_env_decay += 0.2f + frnd(0.3f);
+  }
+  p_lpf_resonance = frnd(2.0f) - 1.0f;
+  p_lpf_freq = 1.0f - pow(frnd(1.0f), 3.0f);
+  p_lpf_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  if (p_lpf_freq < 0.1f && p_lpf_ramp < -0.05f) p_lpf_ramp = -p_lpf_ramp;
+  p_hpf_freq = pow(frnd(1.0f), 5.0f);
+  p_hpf_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
+  p_pha_offset = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_pha_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_repeat_speed = frnd(2.0f) - 1.0f;
+  p_arp_speed = frnd(2.0f) - 1.0f;
+  p_arp_mod = frnd(2.0f) - 1.0f;
+  PlaySample();
+}
+
+static void do_mutate() {
+  if (rnd(1)) p_base_freq += frnd(0.1f) - 0.05f;
+  // if(rnd(1)) p_freq_limit+=frnd(0.1f)-0.05f;
+  if (rnd(1)) p_freq_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_freq_dramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_duty += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_duty_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_strength += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_delay += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_attack += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_sustain += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_decay += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_punch += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_resonance += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_freq += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_hpf_freq += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_hpf_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_pha_offset += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_pha_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_repeat_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_arp_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_arp_mod += frnd(0.1f) - 0.05f;
+  PlaySample();
+}
+
+static void do_load_sound() {
+  char filename[256];
+  if (FileSelectorLoad(hWndMain, filename, 1)) { // WIN32
+    ResetParams();
+    LoadSettings(filename);
+    PlaySample();
+  }
+}
+static void do_save_sound() {
+  char filename[256];
+  if (FileSelectorSave(hWndMain, filename, 1)) { // WIN32
+    SaveSettings(filename);
+  }
+}
+
+static void do_export_wav() {
+  char filename[256];
+  if (FileSelectorSave(hWndMain, filename, 0)) { // WIN32
+    ExportWAV(filename);
+  }
+}
+
+static void do_change_freq() {
+  if (wav_freq == 44100) {
+    wav_freq = 22050;
+  } else {
+    wav_freq = 44100;
+  }
+}
+static void do_change_bitrate() {
+  if (wav_bits == 16) {
+    wav_bits = 8;
+  } else {
+    wav_bits = 16;
+  }
+}
+
+#include "button.hpp"
+#include "geom.hpp"
+#include "ui.hpp"
+#include "utils.hpp"
+
+void draw_item(const ui_item & i) {
+  switch (i.type) {
+  case ui_item_type::text: {
+    const auto & t = i.data.text; // NOLINT
+    DrawText(t.pos.x, t.pos.y, t.color, t.text);
+    break;
+  }
+  case ui_item_type::bar: {
+    const auto & t = i.data.bar; // NOLINT
+    DrawBar(t.bounds.p1.x, t.bounds.p1.y, t.bounds.p2.x - t.bounds.p1.x, t.bounds.p2.y - t.bounds.p1.y, t.color);
+    break;
+  }
+  }
+}
+template<auto N>
+void draw_items(const ui_result<N> & ui) {
+  for (const auto & u : ui.items) {
+    draw_item(u);
+  }
+}
+template<auto N>
+void run_result(const ui_result<N> & ui) {
+  draw_items(ui);
+  if (ui.sel) vcurbutton = ui.sel.value();
+  if (ui.clicked) ui.clicked.value()();
+}
+
+static constexpr auto always_false() noexcept {
+  return false;
+}
+
 struct gen_btn {
   const char * name {};
   ui_callback cb {};
@@ -843,21 +930,55 @@ static constexpr auto waveform_btns() {
   });
 }
 
+static constexpr auto other_btns() {
+  constexpr const auto list = std::array {
+    btn(5, 412, always_false, "RANDOMIZE", 40, do_randomize),
+    btn(5, 382, always_false, "MUTATE", 30, do_mutate),
+    btn(490, 200, always_false, "PLAY SOUND", 20, PlaySample),
+    btn(490, 290, always_false, "LOAD SOUND", 14, do_load_sound),
+    btn(490, 320, always_false, "SAVE SOUND", 15, do_save_sound),
+    btn(490, 380, always_false, "EXPORT .WAV", 16, do_export_wav),
+  };
+  return list;
+}
+
 void DrawButtons() {
   const mouse ms {
     .pos = { mouse_x, mouse_y },
     .down = mouse_left,
     .clicked = mouse_leftclick,
   };
-  constexpr const auto btns = concat(gen_btns(), waveform_btns());
+  constexpr const auto btns = concat(gen_btns(), waveform_btns(), other_btns());
   const auto ui_res = convert<ui_result<3>>(btns, [&](const auto & b) {
     return imm_button(ms, b, vcurbutton);
   });
   run_result(sum_all(ui_res));
 }
+bool Button(int x, int y, const char * text, int id) {
+  mouse ms {
+    .pos = { mouse_x, mouse_y },
+    .down = mouse_left,
+    .clicked = mouse_leftclick,
+  };
+  auto b = btn(x, y, always_false, text, id, [] {
+  });
+  auto imm = imm_button(ms, b, vcurbutton);
+  run_result(imm);
+  return imm.sel.value_or(id + 1) == id;
+}
 
 int drawcount = 0;
 
+static const char * freq_label() {
+  static std::string str;
+  str = std::to_string(wav_freq) + " HZ";
+  return str.c_str();
+}
+static const char * bits_label() {
+  static std::string str;
+  str = std::to_string(wav_bits) + "-BIT";
+  return str.c_str();
+}
 void DrawScreen() {
   bool redraw = true;
   if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
@@ -888,122 +1009,26 @@ void DrawScreen() {
 
   ClearScreen(0xC0B090);
 
-  DrawButtons();
   DrawText(10, 10, 0x504030, "GENERATOR");
 
   DrawBar(110, 0, 2, 480, 0x000000);
   DrawText(120, 10, 0x504030, "MANUAL SETTINGS");
   DrawSprite(ld48, 8, 440, 0, 0xB0A080);
 
-  bool do_play = false;
-
   DrawBar(5 - 1 - 1, 412 - 1 - 1, 102 + 2, 19 + 2, 0x000000);
-  if (Button(5, 412, "RANDOMIZE", 40)) {
-    p_base_freq = pow(frnd(2.0f) - 1.0f, 2.0f);
-    if (rnd(1)) p_base_freq = pow(frnd(2.0f) - 1.0f, 3.0f) + 0.5f;
-    p_freq_limit = 0.0f;
-    p_freq_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
-    if (p_base_freq > 0.7f && p_freq_ramp > 0.2f) p_freq_ramp = -p_freq_ramp;
-    if (p_base_freq < 0.2f && p_freq_ramp < -0.05f) p_freq_ramp = -p_freq_ramp;
-    p_freq_dramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_duty = frnd(2.0f) - 1.0f;
-    p_duty_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_vib_strength = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_vib_speed = frnd(2.0f) - 1.0f;
-    p_vib_delay = frnd(2.0f) - 1.0f;
-    p_env_attack = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_env_sustain = pow(frnd(2.0f) - 1.0f, 2.0f);
-    p_env_decay = frnd(2.0f) - 1.0f;
-    p_env_punch = pow(frnd(0.8f), 2.0f);
-    if (p_env_attack + p_env_sustain + p_env_decay < 0.2f) {
-      p_env_sustain += 0.2f + frnd(0.3f);
-      p_env_decay += 0.2f + frnd(0.3f);
-    }
-    p_lpf_resonance = frnd(2.0f) - 1.0f;
-    p_lpf_freq = 1.0f - pow(frnd(1.0f), 3.0f);
-    p_lpf_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    if (p_lpf_freq < 0.1f && p_lpf_ramp < -0.05f) p_lpf_ramp = -p_lpf_ramp;
-    p_hpf_freq = pow(frnd(1.0f), 5.0f);
-    p_hpf_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
-    p_pha_offset = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_pha_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_repeat_speed = frnd(2.0f) - 1.0f;
-    p_arp_speed = frnd(2.0f) - 1.0f;
-    p_arp_mod = frnd(2.0f) - 1.0f;
-    do_play = true;
-  }
-
-  if (Button(5, 382, "MUTATE", 30)) {
-    if (rnd(1)) p_base_freq += frnd(0.1f) - 0.05f;
-    //		if(rnd(1)) p_freq_limit+=frnd(0.1f)-0.05f;
-    if (rnd(1)) p_freq_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_freq_dramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_duty += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_duty_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_strength += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_delay += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_attack += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_sustain += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_decay += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_punch += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_resonance += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_freq += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_hpf_freq += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_hpf_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_pha_offset += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_pha_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_repeat_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_arp_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_arp_mod += frnd(0.1f) - 0.05f;
-    do_play = true;
-  }
 
   DrawText(515, 170, 0x000000, "VOLUME");
   DrawBar(490 - 1 - 1 + 60, 180 - 1 + 5, 70, 2, 0x000000);
   DrawBar(490 - 1 - 1 + 60 + 68, 180 - 1 + 5, 2, 205, 0x000000);
   DrawBar(490 - 1 - 1 + 60, 180 - 1, 42 + 2, 10 + 2, 0xFF0000);
   Slider(490, 180, sound_vol, false, " ");
-  if (Button(490, 200, "PLAY SOUND", 20)) PlaySample();
-
-  if (Button(490, 290, "LOAD SOUND", 14)) {
-    char filename[256];
-    if (FileSelectorLoad(hWndMain, filename, 1)) // WIN32
-    {
-      ResetParams();
-      LoadSettings(filename);
-      PlaySample();
-    }
-  }
-  if (Button(490, 320, "SAVE SOUND", 15)) {
-    char filename[256];
-    if (FileSelectorSave(hWndMain, filename, 1)) // WIN32
-      SaveSettings(filename);
-  }
 
   DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, 0x000000);
   DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, 0x000000);
-  if (Button(490, 380, "EXPORT .WAV", 16)) {
-    char filename[256];
-    if (FileSelectorSave(hWndMain, filename, 0)) // WIN32
-      ExportWAV(filename);
-  }
-  char str[10];
-  sprintf(str, "%i HZ", wav_freq);
-  if (Button(490, 410, str, 18)) {
-    if (wav_freq == 44100)
-      wav_freq = 22050;
-    else
-      wav_freq = 44100;
-  }
-  sprintf(str, "%i-BIT", wav_bits);
-  if (Button(490, 440, str, 19)) {
-    if (wav_bits == 16)
-      wav_bits = 8;
-    else
-      wav_bits = 16;
-  }
+
+  DrawButtons();
+  if (Button(490, 410, freq_label(), 18)) do_change_freq();
+  if (Button(490, 440, bits_label(), 19)) do_change_bitrate();
 
   int ypos = 4;
 
@@ -1057,8 +1082,6 @@ void DrawScreen() {
 
   DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, 0x0000000);
   DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, 0x0000000);
-
-  if (do_play) PlaySample();
 
   ddkUnlock();
 

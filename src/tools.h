@@ -98,17 +98,10 @@ void DrawSprite(Spriteset & sprites, int sx, int sy, int i, DWORD color) {
   }
 }
 
-void DrawText(int sx, int sy, DWORD color, const char * string, ...) {
-  char string2[256];
-  va_list args;
-
-  va_start(args, string);
-  vsprintf(string2, string, args);
-  va_end(args);
-
-  int len = strlen(string2);
+void DrawText(int sx, int sy, DWORD color, const char * string) {
+  int len = strlen(string);
   for (int i = 0; i < len; i++)
-    DrawSprite(font, sx + i * 8, sy, string2[i] - ' ', color);
+    DrawSprite(font, sx + i * 8, sy, string[i] - ' ', color);
 }
 
 bool MouseInBox(int x, int y, int w, int h) {

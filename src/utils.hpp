@@ -13,11 +13,17 @@ static constexpr auto opt_chain(std::optional<Tp> a, std::optional<Tp> b) {
   if (a) return a;
   return b;
 }
-template<class Tp, auto A, auto B>
-static constexpr std::array<Tp, A + B> concat(const std::array<Tp, A> & a, const std::array<Tp, B> & b) {
-  std::array<Tp, A + B> result {};
+template<class Tp, auto N>
+static constexpr std::array<Tp, N> concat(const std::array<Tp, N> & a) {
+  return a;
+}
+template<class Tp, auto N, auto... Ns>
+static constexpr std::array<Tp, N + (Ns + ...)> concat(const std::array<Tp, N> & a, const std::array<Tp, Ns>... o) {
+  const auto b = concat(o...);
+
+  std::array<Tp, N + (Ns + ...)> result {};
   std::copy(a.cbegin(), a.cend(), result.begin());
-  std::copy(b.cbegin(), b.cend(), result.begin() + A);
+  std::copy(b.cbegin(), b.cend(), result.begin() + N);
   return result;
 }
 

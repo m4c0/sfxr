@@ -99,9 +99,8 @@ static constexpr auto btn_ui_items(const button & btn, const btn_colors & colors
 
 static constexpr ui_result<3> imm_button(const mouse & ms, const button & btn, int cur_btn) {
   auto state = imm_button_state(ms, btn, cur_btn);
-  auto colors = btn_colors_for_state(state);
   return ui_result<3> {
-    .items = btn_ui_items(btn, colors),
+    .items = btn_ui_items(btn, btn_colors_for_state(state)),
     .sel = cond(is_button_down(state), btn.id),
     .clicked = cond(is_button_clicked(state), btn.cb),
   };
