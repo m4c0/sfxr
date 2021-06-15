@@ -967,19 +967,20 @@ static constexpr auto dyn_btns() {
   });
 }
 
-template<auto N>
-void run_buttons(const btn_ui<N> & ui) {
-  draw_bars(ui.bars);
-  draw_texts(ui.texts);
-  run_result(ui.result);
+static auto sidefx_btn_state(const mouse & ms) {
+  return [ms](const auto & b) {
+    return imm_button_state(ms, b, vcurbutton);
+  };
 }
 void DrawButtons(const mouse & ms) {
   constexpr const auto static_btns = concat(gen_btns(), waveform_btns(), other_btns());
   const auto btns = concat(static_btns, dyn_btns());
-  const auto ui_res = sum_all(convert<btn_ui<1>>(btns, [&](const auto & b) {
-    return make_btn_ui(ms, b, vcurbutton);
-  }));
-  run_buttons(ui_res);
+  const auto states = convert<btn_state>(btns, sidefx_btn_state(ms));
+  const auto colors = convert<btn_colors>(states, btn_colors_for_state);
+
+  draw_bars(concat_all(zip(btns, colors, btn_ui_bars)));
+  draw_texts(zip(btns, colors, btn_ui_text));
+  run_result(sum_all(zip(btns, states, btn_ui_result)));
 }
 
 int drawcount = 0;

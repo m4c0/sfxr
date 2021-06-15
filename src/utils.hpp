@@ -65,3 +65,19 @@ template<class Arr>
 static constexpr auto sum_all(const Arr & arr) {
   return sum_all(arr, std::make_integer_sequence<int, Arr().size()>());
 }
+
+template<class Arr, typename T, T... idxs>
+static constexpr auto concat_all(const Arr & arr, std::integer_sequence<T, idxs...> /*seq*/) {
+  return concat(arr[idxs]...);
+}
+template<class Arr>
+static constexpr auto concat_all(const Arr & arr) {
+  return concat_all(arr, std::make_integer_sequence<int, Arr().size()>());
+}
+
+template<typename A, typename B, auto N, typename Fn>
+static auto zip(const std::array<A, N> & a, const std::array<B, N> & b, Fn && fn) {
+  std::array<decltype(fn(A {}, B {})), N> res {};
+  std::transform(a.begin(), a.end(), b.begin(), res.begin(), fn);
+  return res;
+}
