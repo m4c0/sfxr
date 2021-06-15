@@ -978,7 +978,7 @@ void DrawButtons(const mouse & ms) {
   const auto states = convert<btn_state>(btns, sidefx_btn_state(ms));
   const auto colors = convert<btn_colors>(states, btn_colors_for_state);
 
-  draw_bars(concat_all(zip(btns, colors, btn_ui_bars)));
+  draw_bars(concat(zip(btns, colors, btn_ui_bar_bg), zip(btns, colors, btn_ui_bar_fg)));
   draw_texts(zip(btns, colors, btn_ui_text));
   run_result(sum_all(zip(btns, states, btn_ui_result)));
 }

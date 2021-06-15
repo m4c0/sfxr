@@ -60,6 +60,8 @@ static constexpr btn_colors btn_colors_for_state(btn_state state) {
   case btn_state::clicked: // TODO: different color, maybe?
   case btn_state::down:
     return { palette0, palette1, palette0 };
+  default:
+    std::terminate(); // TODO: find a better way to force compiler to ignore this branch
   };
 }
 static constexpr bool is_button_clicked(btn_state state) {
@@ -89,11 +91,11 @@ static constexpr btn_state imm_button_state(const mouse & mouse, const button & 
 }
 
 static constexpr const auto btn_margin = 5;
-static constexpr auto btn_ui_bars(const button & btn, const btn_colors & colors) {
-  return std::array {
-    bar_item(extend(btn.bounds, 1), colors.c1),
-    bar_item(btn.bounds, colors.c2),
-  };
+static constexpr auto btn_ui_bar_bg(const button & btn, const btn_colors & colors) {
+  return bar_item(extend(btn.bounds, 1), colors.c1);
+}
+static constexpr auto btn_ui_bar_fg(const button & btn, const btn_colors & colors) {
+  return bar_item(btn.bounds, colors.c2);
 }
 static constexpr auto btn_ui_text(const button & btn, const btn_colors & colors) {
   return text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text);
