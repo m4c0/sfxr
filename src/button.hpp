@@ -2,6 +2,9 @@
 
 #include "geom.hpp"
 #include "ui.hpp"
+#include "utils.hpp"
+
+#include <exception>
 
 struct mouse {
   point pos;
@@ -100,9 +103,9 @@ static constexpr auto btn_ui_bar_fg(const button & btn, const btn_colors & color
 static constexpr auto btn_ui_text(const button & btn, const btn_colors & colors) {
   return text_item(add(btn.bounds.p1, btn_margin), colors.c3, btn.text);
 }
-static constexpr auto btn_ui_result(const button & btn, btn_state state) {
-  return ui_result {
-    .sel = cond(is_button_down(state), btn.id),
-    .clicked = cond(is_button_clicked(state), btn.cb),
-  };
+static constexpr auto btn_ui_sel(const button & btn, btn_state state) {
+  return opt(is_button_down(state), btn.id);
+}
+static constexpr auto btn_ui_clicked(const button & btn, btn_state state) {
+  return opt(is_button_clicked(state), btn.cb);
 }

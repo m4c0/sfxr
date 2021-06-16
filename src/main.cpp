@@ -16,7 +16,6 @@
 #include <algorithm>
 #include <array>
 #include <math.h>
-#include <optional>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -868,11 +867,6 @@ void draw_texts(List && ui) {
   }
 }
 
-void run_result(const ui_result & ui) {
-  if (ui.sel) vcurbutton = ui.sel.value();
-  if (ui.clicked) ui.clicked.value()();
-}
-
 static constexpr auto always_false() noexcept {
   return false;
 }
@@ -967,6 +961,8 @@ static constexpr auto dyn_btns() {
   });
 }
 
+static constexpr void dummy() {
+}
 static auto sidefx_btn_state(const mouse & ms) {
   return [ms](const auto & b) {
     return imm_button_state(ms, b, vcurbutton);
@@ -980,7 +976,11 @@ void DrawButtons(const mouse & ms) {
 
   draw_bars(concat(zip(btns, colors, btn_ui_bar_bg), zip(btns, colors, btn_ui_bar_fg)));
   draw_texts(zip(btns, colors, btn_ui_text));
-  run_result(sum_all(zip(btns, states, btn_ui_result)));
+
+  vcurbutton = opt_reduce(zip(btns, states, btn_ui_sel), vcurbutton);
+
+  const auto cb = zip(btns, states, btn_ui_clicked);
+  opt_reduce(zip(btns, states, btn_ui_clicked), dummy)();
 }
 
 int drawcount = 0;
