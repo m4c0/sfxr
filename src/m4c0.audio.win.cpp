@@ -1,6 +1,9 @@
 #include "m4c0.audio.hpp"
 #include "m4c0/log.hpp"
 
+#include <memory>
+#include <string>
+#include <vector>
 #include <wrl/client.h>
 #include <xaudio2.h>
 
@@ -9,10 +12,12 @@ struct destroyer {
     ptr->DestroyVoice();
   }
 };
-class win_streamer : public audio::streamer {
+
+class win_streamer : public audio::streamer, public IXAudio2VoiceCallback {
   Microsoft::WRL::ComPtr<IXAudio2> m_xa2;
   std::unique_ptr<IXAudio2MasteringVoice, destroyer> m_main_voice;
   std::unique_ptr<IXAudio2SourceVoice, destroyer> m_src_voice;
+  std::vector<float> m_buffer {};
 
 public:
   win_streamer() {
@@ -48,12 +53,46 @@ public:
 
     constexpr const auto ratio = XAUDIO2_DEFAULT_FREQ_RATIO;
     IXAudio2SourceVoice * sv {};
-    if (FAILED(hr = m_xa2->CreateSourceVoice(&sv, &wfx, 0, ratio))) {
+    if (FAILED(hr = m_xa2->CreateSourceVoice(&sv, &wfx, 0, ratio, this))) {
       m4c0::log::warning("Failed to initialise XAudio2 source voice");
+      return;
+    }
+    m_src_voice.reset(sv);
+
+    if (FAILED(hr = sv->Start())) {
+      m4c0::log::warning("Failed to start XAudio2 source voice");
       return;
     }
 
     m4c0::log::info("XAudio2 initialised");
+  }
+
+  void OnBufferEnd(void * pBufferContext) noexcept override {
+  }
+  void OnBufferStart(void * pBufferContext) noexcept override {
+  }
+  void OnLoopEnd(void * pBufferContext) noexcept override {
+  }
+  void OnStreamEnd() noexcept override {
+  }
+  void OnVoiceError(void * pBufferContext, HRESULT Error) noexcept override {
+  }
+  void OnVoiceProcessingPassEnd() noexcept override {
+  }
+  void OnVoiceProcessingPassStart(UINT32 BytesRequired) noexcept override {
+    if (!producer()) return;
+
+    m_buffer.resize(BytesRequired / sizeof(float));
+    producer()->fill_buffer(m_buffer);
+
+    XAUDIO2_BUFFER buf {
+      .AudioBytes = BytesRequired,
+      .pAudioData = reinterpret_cast<BYTE *>(m_buffer.data()), // NOLINT
+    };
+    HRESULT hr {};
+    if (FAILED(hr = m_src_voice->SubmitSourceBuffer(&buf))) {
+      m4c0::log::warning("Failed to submit audio buffer");
+    }
   }
 };
 
