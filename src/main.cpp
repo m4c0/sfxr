@@ -16,6 +16,7 @@
 #include "parameters.hpp"
 #include "settings.hpp"
 
+#include <algorithm>
 #include <array>
 #include <math.h>
 #include <stdarg.h>
@@ -320,6 +321,21 @@ PortAudioStream * stream;
 bool mute_stream;
 
 #if M4C0
+static auto & streamer() {
+  static auto i = audio::streamer::create();
+  return i;
+}
+
+class sfxr_producer : public audio::producer {
+public:
+  void fill_buffer(std::span<float> data) override {
+    if (playing_sample && !mute_stream) {
+      SynthSample(static_cast<int>(data.size()), data.data(), nullptr);
+    } else {
+      std::fill(data.begin(), data.end(), 0);
+    }
+  }
+};
 #elif defined(WIN32)
 // ancient portaudio stuff
 static int AudioCallback(
@@ -921,6 +937,7 @@ void ddkInit() {
   ResetParams();
 
 #if M4C0
+  streamer()->producer() = std::make_unique<sfxr_producer>();
 #elif defined(WIN32)
   // Init PortAudio
   SetEnvironmentVariable("PA_MIN_LATENCY_MSEC", "75"); // WIN32
