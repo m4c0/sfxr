@@ -883,6 +883,9 @@ static void do_bit_change() {
     wav_bits = 16;
 }
 
+static constexpr const auto bg_color = 0xC0B090;
+static constexpr const auto txt_color = 0x504030;
+static constexpr const auto bar_color = 0x000000;
 void DrawGeneratorButtons() {
   struct button {
     const char * name;
@@ -904,17 +907,7 @@ void DrawGeneratorButtons() {
     i++;
   }
 }
-void DrawScreen() {
-  if (!should_redraw()) return;
-
-  constexpr const auto bg_color = 0xC0B090;
-  constexpr const auto txt_color = 0x504030;
-  constexpr const auto bar_color = 0x000000;
-
-  ddkLock();
-
-  ClearScreen(bg_color);
-
+void DrawButtonsAndWhereabouts() {
   DrawText(10, 10, txt_color, "GENERATOR");
   DrawGeneratorButtons();
 
@@ -950,10 +943,10 @@ void DrawScreen() {
   if (Button(490, 410, false, str, 18)) do_freq_change();
   sprintf(str, "%i-BIT", wav_bits);
   if (Button(490, 440, false, str, 19)) do_bit_change();
-
-  int ypos = 4;
-
+}
+void DrawSlidersAndWhereabouts() {
   int xpos = 350;
+  int ypos = 4;
 
   DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
@@ -1003,6 +996,15 @@ void DrawScreen() {
 
   DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
   DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
+}
+void DrawScreen() {
+  if (!should_redraw()) return;
+
+  ddkLock();
+
+  ClearScreen(bg_color);
+  DrawButtonsAndWhereabouts();
+  DrawSlidersAndWhereabouts();
 
   ddkUnlock();
 
