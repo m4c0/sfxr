@@ -19,7 +19,7 @@ set_target_properties(sfxr PROPERTIES
 
 if(WIN32)
   target_link_libraries(sfxr PRIVATE m4c0::win::main)
-  target_sources(sfxr PRIVATE src/m4c0.win.cpp src/m4c0.win.rc)
+  target_sources(sfxr PRIVATE src/m4c0.win.cpp src/m4c0.audio.win.cpp src/m4c0.win.rc)
 elseif(APPLE)
   target_link_libraries(sfxr PRIVATE m4c0::osx::main "-framework AudioToolbox")
   target_sources(sfxr PRIVATE src/m4c0.osx.cpp src/m4c0.audio.osx.cpp)
