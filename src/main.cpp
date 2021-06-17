@@ -13,6 +13,7 @@
 #include "sdlkit.h"
 #endif
 
+#include <array>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -45,12 +46,6 @@ struct Spriteset {
 
 Spriteset font;
 Spriteset ld48;
-
-struct Category {
-  char name[32];
-};
-
-Category categories[10];
 
 int wave_type;
 
@@ -575,9 +570,6 @@ bool ExportWAV(char * filename) {
 
 #include "tools.h"
 
-bool firstframe = true;
-int refresh_counter = 0;
-
 void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   bool hover = false;
   if (MouseInBox(x, y, 100, 10)) {
@@ -639,17 +631,19 @@ bool Button(int x, int y, bool highlight, const char * text, int id) {
   return false;
 }
 
-int drawcount = 0;
+static bool should_redraw() {
+  static int drawcount = 0;
+  static bool firstframe = true;
+  static int refresh_counter = 0;
 
-void DrawScreen() {
   bool redraw = true;
   if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
   if (!mouse_left) {
-    if (vselected != NULL || vcurbutton > -1) {
+    if (vselected != nullptr || vcurbutton > -1) {
       redraw = true;
       refresh_counter = 2;
     }
-    vselected = NULL;
+    vselected = nullptr;
   }
   if (refresh_counter > 0) {
     refresh_counter--;
@@ -658,160 +652,274 @@ void DrawScreen() {
 
   if (playing_sample) redraw = true;
 
-  if (drawcount++ > 20) {
+  constexpr auto frames_between_refreshes = 20;
+  if (drawcount++ > frames_between_refreshes) {
     redraw = true;
     drawcount = 0;
   }
 
-  if (!redraw) return;
-
   firstframe = false;
+  return redraw;
+}
+
+static void do_pickup_coin() {
+  ResetParams();
+  p_base_freq = 0.4f + frnd(0.5f);
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.1f);
+  p_env_decay = 0.1f + frnd(0.4f);
+  p_env_punch = 0.3f + frnd(0.3f);
+  if (rnd(1)) {
+    p_arp_speed = 0.5f + frnd(0.2f);
+    p_arp_mod = 0.2f + frnd(0.4f);
+  }
+}
+static void do_laser_shoot() {
+  ResetParams();
+  wave_type = rnd(2);
+  if (wave_type == 2 && rnd(1)) wave_type = rnd(1);
+  p_base_freq = 0.5f + frnd(0.5f);
+  p_freq_limit = p_base_freq - 0.2f - frnd(0.6f);
+  if (p_freq_limit < 0.2f) p_freq_limit = 0.2f;
+  p_freq_ramp = -0.15f - frnd(0.2f);
+  if (rnd(2) == 0) {
+    p_base_freq = 0.3f + frnd(0.6f);
+    p_freq_limit = frnd(0.1f);
+    p_freq_ramp = -0.35f - frnd(0.3f);
+  }
+  if (rnd(1)) {
+    p_duty = frnd(0.5f);
+    p_duty_ramp = frnd(0.2f);
+  } else {
+    p_duty = 0.4f + frnd(0.5f);
+    p_duty_ramp = -frnd(0.7f);
+  }
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.2f);
+  p_env_decay = frnd(0.4f);
+  if (rnd(1)) p_env_punch = frnd(0.3f);
+  if (rnd(2) == 0) {
+    p_pha_offset = frnd(0.2f);
+    p_pha_ramp = -frnd(0.2f);
+  }
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+}
+static void do_explosion() {
+  ResetParams();
+  wave_type = 3;
+  if (rnd(1)) {
+    p_base_freq = 0.1f + frnd(0.4f);
+    p_freq_ramp = -0.1f + frnd(0.4f);
+  } else {
+    p_base_freq = 0.2f + frnd(0.7f);
+    p_freq_ramp = -0.2f - frnd(0.2f);
+  }
+  p_base_freq *= p_base_freq;
+  if (rnd(4) == 0) p_freq_ramp = 0.0f;
+  if (rnd(2) == 0) p_repeat_speed = 0.3f + frnd(0.5f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.3f);
+  p_env_decay = frnd(0.5f);
+  if (rnd(1) == 0) {
+    p_pha_offset = -0.3f + frnd(0.9f);
+    p_pha_ramp = -frnd(0.3f);
+  }
+  p_env_punch = 0.2f + frnd(0.6f);
+  if (rnd(1)) {
+    p_vib_strength = frnd(0.7f);
+    p_vib_speed = frnd(0.6f);
+  }
+  if (rnd(2) == 0) {
+    p_arp_speed = 0.6f + frnd(0.3f);
+    p_arp_mod = 0.8f - frnd(1.6f);
+  }
+}
+static void do_powerup() {
+  ResetParams();
+  if (rnd(1))
+    wave_type = 1;
+  else
+    p_duty = frnd(0.6f);
+  if (rnd(1)) {
+    p_base_freq = 0.2f + frnd(0.3f);
+    p_freq_ramp = 0.1f + frnd(0.4f);
+    p_repeat_speed = 0.4f + frnd(0.4f);
+  } else {
+    p_base_freq = 0.2f + frnd(0.3f);
+    p_freq_ramp = 0.05f + frnd(0.2f);
+    if (rnd(1)) {
+      p_vib_strength = frnd(0.7f);
+      p_vib_speed = frnd(0.6f);
+    }
+  }
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.4f);
+  p_env_decay = 0.1f + frnd(0.4f);
+}
+static void do_hit_hurt() {
+  ResetParams();
+  wave_type = rnd(2);
+  if (wave_type == 2) wave_type = 3;
+  if (wave_type == 0) p_duty = frnd(0.6f);
+  p_base_freq = 0.2f + frnd(0.6f);
+  p_freq_ramp = -0.3f - frnd(0.4f);
+  p_env_attack = 0.0f;
+  p_env_sustain = frnd(0.1f);
+  p_env_decay = 0.1f + frnd(0.2f);
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+}
+static void do_jump() {
+  ResetParams();
+  wave_type = 0;
+  p_duty = frnd(0.6f);
+  p_base_freq = 0.3f + frnd(0.3f);
+  p_freq_ramp = 0.1f + frnd(0.2f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.3f);
+  p_env_decay = 0.1f + frnd(0.2f);
+  if (rnd(1)) p_hpf_freq = frnd(0.3f);
+  if (rnd(1)) p_lpf_freq = 1.0f - frnd(0.6f);
+}
+static void do_blip_select() {
+  ResetParams();
+  wave_type = rnd(1);
+  if (wave_type == 0) p_duty = frnd(0.6f);
+  p_base_freq = 0.2f + frnd(0.4f);
+  p_env_attack = 0.0f;
+  p_env_sustain = 0.1f + frnd(0.1f);
+  p_env_decay = frnd(0.2f);
+  p_hpf_freq = 0.1f;
+}
+
+static void do_randomize() {
+  p_base_freq = pow(frnd(2.0f) - 1.0f, 2.0f);
+  if (rnd(1)) p_base_freq = pow(frnd(2.0f) - 1.0f, 3.0f) + 0.5f;
+  p_freq_limit = 0.0f;
+  p_freq_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
+  if (p_base_freq > 0.7f && p_freq_ramp > 0.2f) p_freq_ramp = -p_freq_ramp;
+  if (p_base_freq < 0.2f && p_freq_ramp < -0.05f) p_freq_ramp = -p_freq_ramp;
+  p_freq_dramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_duty = frnd(2.0f) - 1.0f;
+  p_duty_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_vib_strength = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_vib_speed = frnd(2.0f) - 1.0f;
+  p_vib_delay = frnd(2.0f) - 1.0f;
+  p_env_attack = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_env_sustain = pow(frnd(2.0f) - 1.0f, 2.0f);
+  p_env_decay = frnd(2.0f) - 1.0f;
+  p_env_punch = pow(frnd(0.8f), 2.0f);
+  if (p_env_attack + p_env_sustain + p_env_decay < 0.2f) {
+    p_env_sustain += 0.2f + frnd(0.3f);
+    p_env_decay += 0.2f + frnd(0.3f);
+  }
+  p_lpf_resonance = frnd(2.0f) - 1.0f;
+  p_lpf_freq = 1.0f - pow(frnd(1.0f), 3.0f);
+  p_lpf_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  if (p_lpf_freq < 0.1f && p_lpf_ramp < -0.05f) p_lpf_ramp = -p_lpf_ramp;
+  p_hpf_freq = pow(frnd(1.0f), 5.0f);
+  p_hpf_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
+  p_pha_offset = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_pha_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
+  p_repeat_speed = frnd(2.0f) - 1.0f;
+  p_arp_speed = frnd(2.0f) - 1.0f;
+  p_arp_mod = frnd(2.0f) - 1.0f;
+  PlaySample();
+}
+static void do_mutate() {
+  if (rnd(1)) p_base_freq += frnd(0.1f) - 0.05f;
+  //		if(rnd(1)) p_freq_limit+=frnd(0.1f)-0.05f;
+  if (rnd(1)) p_freq_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_freq_dramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_duty += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_duty_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_strength += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_vib_delay += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_attack += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_sustain += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_decay += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_env_punch += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_resonance += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_freq += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_lpf_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_hpf_freq += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_hpf_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_pha_offset += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_pha_ramp += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_repeat_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_arp_speed += frnd(0.1f) - 0.05f;
+  if (rnd(1)) p_arp_mod += frnd(0.1f) - 0.05f;
+  PlaySample();
+}
+static void do_load_sound() {
+  char filename[256];
+  if (FileSelectorLoad(hWndMain, filename, 1)) // WIN32
+  {
+    ResetParams();
+    LoadSettings(filename);
+    PlaySample();
+  }
+}
+static void do_save_sound() {
+  char filename[256];
+  if (FileSelectorSave(hWndMain, filename, 1)) // WIN32
+    SaveSettings(filename);
+}
+static void do_export() {
+  char filename[256];
+  if (FileSelectorSave(hWndMain, filename, 0)) // WIN32
+    ExportWAV(filename);
+}
+static void do_freq_change() {
+  if (wav_freq == 44100)
+    wav_freq = 22050;
+  else
+    wav_freq = 44100;
+}
+static void do_bit_change() {
+  if (wav_bits == 16)
+    wav_bits = 8;
+  else
+    wav_bits = 16;
+}
+
+void DrawGeneratorButtons() {
+  struct button {
+    const char * name;
+    void (*callback)();
+  };
+  constexpr const auto categories = std::array {
+    button { "PICKUP/COIN", do_pickup_coin }, button { "LASER/SHOOT", do_laser_shoot },
+    button { "EXPLOSION", do_explosion },     button { "POWERUP", do_powerup },
+    button { "HIT/HURT", do_hit_hurt },       button { "JUMP", do_jump },
+    button { "BLIP/SELECT", do_blip_select },
+  };
+
+  int i = 0;
+  for (const auto & cat : categories) {
+    if (Button(5, 35 + i * 30, false, cat.name, 300 + i)) {
+      cat.callback();
+      PlaySample();
+    }
+    i++;
+  }
+}
+void DrawScreen() {
+  if (!should_redraw()) return;
+
+  constexpr const auto bg_color = 0xC0B090;
+  constexpr const auto txt_color = 0x504030;
+  constexpr const auto bar_color = 0x000000;
 
   ddkLock();
 
-  ClearScreen(0xC0B090);
+  ClearScreen(bg_color);
 
-  DrawText(10, 10, 0x504030, "GENERATOR");
-  for (int i = 0; i < 7; i++) {
-    if (Button(5, 35 + i * 30, false, categories[i].name, 300 + i)) {
-      switch (i) {
-      case 0: // pickup/coin
-        ResetParams();
-        p_base_freq = 0.4f + frnd(0.5f);
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.1f);
-        p_env_decay = 0.1f + frnd(0.4f);
-        p_env_punch = 0.3f + frnd(0.3f);
-        if (rnd(1)) {
-          p_arp_speed = 0.5f + frnd(0.2f);
-          p_arp_mod = 0.2f + frnd(0.4f);
-        }
-        break;
-      case 1: // laser/shoot
-        ResetParams();
-        wave_type = rnd(2);
-        if (wave_type == 2 && rnd(1)) wave_type = rnd(1);
-        p_base_freq = 0.5f + frnd(0.5f);
-        p_freq_limit = p_base_freq - 0.2f - frnd(0.6f);
-        if (p_freq_limit < 0.2f) p_freq_limit = 0.2f;
-        p_freq_ramp = -0.15f - frnd(0.2f);
-        if (rnd(2) == 0) {
-          p_base_freq = 0.3f + frnd(0.6f);
-          p_freq_limit = frnd(0.1f);
-          p_freq_ramp = -0.35f - frnd(0.3f);
-        }
-        if (rnd(1)) {
-          p_duty = frnd(0.5f);
-          p_duty_ramp = frnd(0.2f);
-        } else {
-          p_duty = 0.4f + frnd(0.5f);
-          p_duty_ramp = -frnd(0.7f);
-        }
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.2f);
-        p_env_decay = frnd(0.4f);
-        if (rnd(1)) p_env_punch = frnd(0.3f);
-        if (rnd(2) == 0) {
-          p_pha_offset = frnd(0.2f);
-          p_pha_ramp = -frnd(0.2f);
-        }
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        break;
-      case 2: // explosion
-        ResetParams();
-        wave_type = 3;
-        if (rnd(1)) {
-          p_base_freq = 0.1f + frnd(0.4f);
-          p_freq_ramp = -0.1f + frnd(0.4f);
-        } else {
-          p_base_freq = 0.2f + frnd(0.7f);
-          p_freq_ramp = -0.2f - frnd(0.2f);
-        }
-        p_base_freq *= p_base_freq;
-        if (rnd(4) == 0) p_freq_ramp = 0.0f;
-        if (rnd(2) == 0) p_repeat_speed = 0.3f + frnd(0.5f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.3f);
-        p_env_decay = frnd(0.5f);
-        if (rnd(1) == 0) {
-          p_pha_offset = -0.3f + frnd(0.9f);
-          p_pha_ramp = -frnd(0.3f);
-        }
-        p_env_punch = 0.2f + frnd(0.6f);
-        if (rnd(1)) {
-          p_vib_strength = frnd(0.7f);
-          p_vib_speed = frnd(0.6f);
-        }
-        if (rnd(2) == 0) {
-          p_arp_speed = 0.6f + frnd(0.3f);
-          p_arp_mod = 0.8f - frnd(1.6f);
-        }
-        break;
-      case 3: // powerup
-        ResetParams();
-        if (rnd(1))
-          wave_type = 1;
-        else
-          p_duty = frnd(0.6f);
-        if (rnd(1)) {
-          p_base_freq = 0.2f + frnd(0.3f);
-          p_freq_ramp = 0.1f + frnd(0.4f);
-          p_repeat_speed = 0.4f + frnd(0.4f);
-        } else {
-          p_base_freq = 0.2f + frnd(0.3f);
-          p_freq_ramp = 0.05f + frnd(0.2f);
-          if (rnd(1)) {
-            p_vib_strength = frnd(0.7f);
-            p_vib_speed = frnd(0.6f);
-          }
-        }
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.4f);
-        p_env_decay = 0.1f + frnd(0.4f);
-        break;
-      case 4: // hit/hurt
-        ResetParams();
-        wave_type = rnd(2);
-        if (wave_type == 2) wave_type = 3;
-        if (wave_type == 0) p_duty = frnd(0.6f);
-        p_base_freq = 0.2f + frnd(0.6f);
-        p_freq_ramp = -0.3f - frnd(0.4f);
-        p_env_attack = 0.0f;
-        p_env_sustain = frnd(0.1f);
-        p_env_decay = 0.1f + frnd(0.2f);
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        break;
-      case 5: // jump
-        ResetParams();
-        wave_type = 0;
-        p_duty = frnd(0.6f);
-        p_base_freq = 0.3f + frnd(0.3f);
-        p_freq_ramp = 0.1f + frnd(0.2f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.3f);
-        p_env_decay = 0.1f + frnd(0.2f);
-        if (rnd(1)) p_hpf_freq = frnd(0.3f);
-        if (rnd(1)) p_lpf_freq = 1.0f - frnd(0.6f);
-        break;
-      case 6: // blip/select
-        ResetParams();
-        wave_type = rnd(1);
-        if (wave_type == 0) p_duty = frnd(0.6f);
-        p_base_freq = 0.2f + frnd(0.4f);
-        p_env_attack = 0.0f;
-        p_env_sustain = 0.1f + frnd(0.1f);
-        p_env_decay = frnd(0.2f);
-        p_hpf_freq = 0.1f;
-        break;
-      default:
-        break;
-      }
+  DrawText(10, 10, txt_color, "GENERATOR");
+  DrawGeneratorButtons();
 
-      PlaySample();
-    }
-  }
-  DrawBar(110, 0, 2, 480, 0x000000);
-  DrawText(120, 10, 0x504030, "MANUAL SETTINGS");
+  DrawBar(110, 0, 2, 480, bar_color);
+  DrawText(120, 10, txt_color, "MANUAL SETTINGS");
   DrawSprite(ld48, 8, 440, 0, 0xB0A080);
 
   if (Button(130, 30, wave_type == 0, "SQUAREWAVE", 10)) wave_type = 0;
@@ -819,128 +927,42 @@ void DrawScreen() {
   if (Button(370, 30, wave_type == 2, "SINEWAVE", 12)) wave_type = 2;
   if (Button(490, 30, wave_type == 3, "NOISE", 13)) wave_type = 3;
 
-  bool do_play = false;
+  DrawBar(5 - 1 - 1, 412 - 1 - 1, 102 + 2, 19 + 2, bar_color);
+  if (Button(5, 412, false, "RANDOMIZE", 40)) do_randomize();
 
-  DrawBar(5 - 1 - 1, 412 - 1 - 1, 102 + 2, 19 + 2, 0x000000);
-  if (Button(5, 412, false, "RANDOMIZE", 40)) {
-    p_base_freq = pow(frnd(2.0f) - 1.0f, 2.0f);
-    if (rnd(1)) p_base_freq = pow(frnd(2.0f) - 1.0f, 3.0f) + 0.5f;
-    p_freq_limit = 0.0f;
-    p_freq_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
-    if (p_base_freq > 0.7f && p_freq_ramp > 0.2f) p_freq_ramp = -p_freq_ramp;
-    if (p_base_freq < 0.2f && p_freq_ramp < -0.05f) p_freq_ramp = -p_freq_ramp;
-    p_freq_dramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_duty = frnd(2.0f) - 1.0f;
-    p_duty_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_vib_strength = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_vib_speed = frnd(2.0f) - 1.0f;
-    p_vib_delay = frnd(2.0f) - 1.0f;
-    p_env_attack = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_env_sustain = pow(frnd(2.0f) - 1.0f, 2.0f);
-    p_env_decay = frnd(2.0f) - 1.0f;
-    p_env_punch = pow(frnd(0.8f), 2.0f);
-    if (p_env_attack + p_env_sustain + p_env_decay < 0.2f) {
-      p_env_sustain += 0.2f + frnd(0.3f);
-      p_env_decay += 0.2f + frnd(0.3f);
-    }
-    p_lpf_resonance = frnd(2.0f) - 1.0f;
-    p_lpf_freq = 1.0f - pow(frnd(1.0f), 3.0f);
-    p_lpf_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    if (p_lpf_freq < 0.1f && p_lpf_ramp < -0.05f) p_lpf_ramp = -p_lpf_ramp;
-    p_hpf_freq = pow(frnd(1.0f), 5.0f);
-    p_hpf_ramp = pow(frnd(2.0f) - 1.0f, 5.0f);
-    p_pha_offset = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_pha_ramp = pow(frnd(2.0f) - 1.0f, 3.0f);
-    p_repeat_speed = frnd(2.0f) - 1.0f;
-    p_arp_speed = frnd(2.0f) - 1.0f;
-    p_arp_mod = frnd(2.0f) - 1.0f;
-    do_play = true;
-  }
-
-  if (Button(5, 382, false, "MUTATE", 30)) {
-    if (rnd(1)) p_base_freq += frnd(0.1f) - 0.05f;
-    //		if(rnd(1)) p_freq_limit+=frnd(0.1f)-0.05f;
-    if (rnd(1)) p_freq_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_freq_dramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_duty += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_duty_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_strength += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_vib_delay += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_attack += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_sustain += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_decay += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_env_punch += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_resonance += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_freq += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_lpf_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_hpf_freq += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_hpf_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_pha_offset += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_pha_ramp += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_repeat_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_arp_speed += frnd(0.1f) - 0.05f;
-    if (rnd(1)) p_arp_mod += frnd(0.1f) - 0.05f;
-    do_play = true;
-  }
+  if (Button(5, 382, false, "MUTATE", 30)) do_mutate();
 
   DrawText(515, 170, 0x000000, "VOLUME");
-  DrawBar(490 - 1 - 1 + 60, 180 - 1 + 5, 70, 2, 0x000000);
-  DrawBar(490 - 1 - 1 + 60 + 68, 180 - 1 + 5, 2, 205, 0x000000);
+  DrawBar(490 - 1 - 1 + 60, 180 - 1 + 5, 70, 2, bar_color);
+  DrawBar(490 - 1 - 1 + 60 + 68, 180 - 1 + 5, 2, 205, bar_color);
   DrawBar(490 - 1 - 1 + 60, 180 - 1, 42 + 2, 10 + 2, 0xFF0000);
   Slider(490, 180, sound_vol, false, " ");
   if (Button(490, 200, false, "PLAY SOUND", 20)) PlaySample();
 
-  if (Button(490, 290, false, "LOAD SOUND", 14)) {
-    char filename[256];
-    if (FileSelectorLoad(hWndMain, filename, 1)) // WIN32
-    {
-      ResetParams();
-      LoadSettings(filename);
-      PlaySample();
-    }
-  }
-  if (Button(490, 320, false, "SAVE SOUND", 15)) {
-    char filename[256];
-    if (FileSelectorSave(hWndMain, filename, 1)) // WIN32
-      SaveSettings(filename);
-  }
+  if (Button(490, 290, false, "LOAD SOUND", 14)) do_load_sound();
+  if (Button(490, 320, false, "SAVE SOUND", 15)) do_save_sound();
 
-  DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, 0x000000);
-  DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, 0x000000);
-  if (Button(490, 380, false, "EXPORT .WAV", 16)) {
-    char filename[256];
-    if (FileSelectorSave(hWndMain, filename, 0)) // WIN32
-      ExportWAV(filename);
-  }
+  DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, bar_color);
+  DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, bar_color);
+  if (Button(490, 380, false, "EXPORT .WAV", 16)) do_export();
   char str[10];
   sprintf(str, "%i HZ", wav_freq);
-  if (Button(490, 410, false, str, 18)) {
-    if (wav_freq == 44100)
-      wav_freq = 22050;
-    else
-      wav_freq = 44100;
-  }
+  if (Button(490, 410, false, str, 18)) do_freq_change();
   sprintf(str, "%i-BIT", wav_bits);
-  if (Button(490, 440, false, str, 19)) {
-    if (wav_bits == 16)
-      wav_bits = 8;
-    else
-      wav_bits = 16;
-  }
+  if (Button(490, 440, false, str, 19)) do_bit_change();
 
   int ypos = 4;
 
   int xpos = 350;
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_env_attack, false, "ATTACK TIME");
   Slider(xpos, (ypos++) * 18, p_env_sustain, false, "SUSTAIN TIME");
   Slider(xpos, (ypos++) * 18, p_env_punch, false, "SUSTAIN PUNCH");
   Slider(xpos, (ypos++) * 18, p_env_decay, false, "DECAY TIME");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_base_freq, false, "START FREQUENCY");
   Slider(xpos, (ypos++) * 18, p_freq_limit, false, "MIN FREQUENCY");
@@ -950,26 +972,26 @@ void DrawScreen() {
   Slider(xpos, (ypos++) * 18, p_vib_strength, false, "VIBRATO DEPTH");
   Slider(xpos, (ypos++) * 18, p_vib_speed, false, "VIBRATO SPEED");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_arp_mod, true, "CHANGE AMOUNT");
   Slider(xpos, (ypos++) * 18, p_arp_speed, false, "CHANGE SPEED");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_duty, false, "SQUARE DUTY");
   Slider(xpos, (ypos++) * 18, p_duty_ramp, true, "DUTY SWEEP");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_repeat_speed, false, "REPEAT SPEED");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_pha_offset, true, "PHASER OFFSET");
   Slider(xpos, (ypos++) * 18, p_pha_ramp, true, "PHASER SWEEP");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
   Slider(xpos, (ypos++) * 18, p_lpf_freq, false, "LP FILTER CUTOFF");
   Slider(xpos, (ypos++) * 18, p_lpf_ramp, true, "LP FILTER CUTOFF SWEEP");
@@ -977,12 +999,10 @@ void DrawScreen() {
   Slider(xpos, (ypos++) * 18, p_hpf_freq, false, "HP FILTER CUTOFF");
   Slider(xpos, (ypos++) * 18, p_hpf_ramp, true, "HP FILTER CUTOFF SWEEP");
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, 0x0000000);
+  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
-  DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, 0x0000000);
-  DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, 0x0000000);
-
-  if (do_play) PlaySample();
+  DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
+  DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
 
   ddkUnlock();
 
@@ -1041,14 +1061,6 @@ void ddkInit() {
   ld48.width = ld48.pitch;
 
   input = new DPInput(hWndMain, hInstanceMain); // WIN32
-
-  strcpy(categories[0].name, "PICKUP/COIN");
-  strcpy(categories[1].name, "LASER/SHOOT");
-  strcpy(categories[2].name, "EXPLOSION");
-  strcpy(categories[3].name, "POWERUP");
-  strcpy(categories[4].name, "HIT/HURT");
-  strcpy(categories[5].name, "JUMP");
-  strcpy(categories[6].name, "BLIP/SELECT");
 
   ResetParams();
 
