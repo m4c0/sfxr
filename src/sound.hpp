@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 // https://mklimenko.github.io/english/2018/06/04/constexpr-random/
 namespace cemath::details {
@@ -64,6 +65,37 @@ namespace sound {
     float i {};
     return std::modf(f, &i);
   }
+
+  template<class Tp>
+  class envelope {
+    Tp m_attack;
+    Tp m_sustain;
+    Tp m_decay;
+
+  public:
+    constexpr envelope() = default;
+    constexpr envelope(Tp att, Tp sus, Tp dec) : m_attack(att), m_sustain(sus), m_decay(dec) {
+    }
+
+    [[nodiscard]] constexpr float volume(Tp time, float punch) const noexcept {
+      if (time < m_attack) {
+        auto ftime = static_cast<float>(time);
+        return time / m_attack;
+      }
+      time -= m_attack;
+      if (time < m_sustain) {
+        constexpr const auto punch_scale = 2.0F;
+        auto ftime = static_cast<float>(time);
+        return 1.0F + (1.0F - ftime / m_sustain) * punch_scale * punch;
+      }
+      time -= m_sustain;
+      if (time < m_decay) {
+        auto ftime = static_cast<float>(time);
+        return 1.0F - ftime / m_decay;
+      }
+      return std::numeric_limits<float>::quiet_NaN();
+    }
+  };
 }
 
 namespace sound::waveform {

@@ -66,9 +66,7 @@ double fdslide;
 int period;
 float square_duty;
 float square_slide;
-int env_stage;
 int env_time;
-int env_length[3];
 float fphase;
 float fdphase;
 int iphase;
@@ -91,6 +89,8 @@ int arp_time;
 int arp_limit;
 double arp_mod;
 
+static sound::envelope<int> g_env; // NOLINT
+
 float * vselected = NULL;
 int vcurbutton = -1;
 
@@ -100,6 +100,11 @@ int wav_freq = 44100;
 void ResetParams() {
   wave_type = 0;
   p = {};
+}
+
+static constexpr auto penv_to_int(float penv) {
+  constexpr const auto scale = 100000.0F;
+  return static_cast<int>(penv * penv * scale);
 }
 
 void ResetSample(bool restart) {
@@ -134,11 +139,8 @@ void ResetSample(bool restart) {
     vib_speed = pow(p.m_vib_speed, 2.0f) * 0.01f;
     vib_amp = p.m_vib_strength * 0.5f;
     // reset envelope
-    env_stage = 0;
     env_time = 0;
-    env_length[0] = (int)(p.m_env_attack * p.m_env_attack * 100000.0f);
-    env_length[1] = (int)(p.m_env_sustain * p.m_env_sustain * 100000.0f);
-    env_length[2] = (int)(p.m_env_decay * p.m_env_decay * 100000.0f);
+    g_env = { penv_to_int(p.m_env_attack), penv_to_int(p.m_env_sustain), penv_to_int(p.m_env_decay) };
 
     fphase = pow(p.m_pha_offset, 2.0f) * 1020.0f;
     if (p.m_pha_offset < 0.0f) fphase = -fphase;
@@ -194,15 +196,11 @@ void SynthSample(int length, float * buffer) {
     if (square_duty > 0.5f) square_duty = 0.5f;
     // volume envelope
     env_time++;
-    if (env_time > env_length[env_stage]) {
-      env_time = 0;
-      env_stage++;
-      if (env_stage == 3) playing_sample = false;
+    float env_vol = g_env.volume(env_time, p.m_env_punch);
+    if (std::isnan(env_vol)) {
+      playing_sample = false;
+      env_vol = 0;
     }
-    float env_vol = 0.0F;
-    if (env_stage == 0) env_vol = (float)env_time / env_length[0];
-    if (env_stage == 1) env_vol = 1.0f + pow(1.0f - (float)env_time / env_length[1], 1.0f) * 2.0f * p.m_env_punch;
-    if (env_stage == 2) env_vol = 1.0f - (float)env_time / env_length[2];
 
     // phaser step
     fphase += fdphase;
