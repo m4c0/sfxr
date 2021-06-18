@@ -15,6 +15,7 @@
 
 #include "parameters.hpp"
 #include "settings.hpp"
+#include "sound.hpp"
 
 #include <algorithm>
 #include <array>
@@ -54,8 +55,6 @@ Spriteset ld48;
 
 int wave_type;
 
-float master_vol = 0.05f;
-
 float sound_vol = 0.5f;
 
 bool playing_sample = false;
@@ -76,7 +75,6 @@ float fdphase;
 int iphase;
 float phaser_buffer[1024];
 int ipp;
-float noise_buffer[32];
 float fltp;
 float fltdp;
 float fltw;
@@ -153,9 +151,6 @@ void ResetSample(bool restart) {
     for (int i = 0; i < 1024; i++)
       phaser_buffer[i] = 0.0f;
 
-    for (int i = 0; i < 32; i++)
-      noise_buffer[i] = frnd(2.0f) - 1.0f;
-
     rep_time = 0;
     rep_limit = (int)(pow(1.0f - p.m_repeat_speed, 2.0f) * 20000 + 32);
     if (p.m_repeat_speed == 0.0f) rep_limit = 0;
@@ -221,42 +216,32 @@ void SynthSample(int length, float * buffer) {
       if (flthp > 0.1f) flthp = 0.1f;
     }
 
+    constexpr const auto supersample_count = 8;
     float ssample = 0.0f;
-    for (int si = 0; si < 8; si++) // 8x supersampling
+    for (int si = 0; si < supersample_count; si++) // 8x supersampling
     {
       float sample = 0.0f;
       phase++;
-      if (phase >= period) {
-        //				phase=0;
-        phase %= period;
-        if (wave_type == 3)
-          for (int i = 0; i < 32; i++)
-            noise_buffer[i] = frnd(2.0f) - 1.0f;
-      }
       // base waveform
       float fp = (float)phase / period;
       switch (wave_type) {
       case 0: // square
-        if (fp < square_duty)
-          sample = 0.5f;
-        else
-          sample = -0.5f;
+        sample = sound::waveform::square(fp, square_duty);
         break;
       case 1: // sawtooth
-        sample = 1.0f - fp * 2;
+        sample = sound::waveform::sawtooth(fp);
         break;
       case 2: // sine
-        sample = (float)sin(fp * 2 * PI);
+        sample = sound::waveform::sine(fp);
         break;
       case 3: // noise
-        sample = noise_buffer[phase * 32 / period];
+        sample = sound::waveform::noise();
         break;
       }
       // lp filter
+      constexpr const auto max_fltw = 0.01F;
       float pp = fltp;
-      fltw *= fltw_d;
-      if (fltw < 0.0f) fltw = 0.0f;
-      if (fltw > 0.1f) fltw = 0.1f;
+      fltw = sound::norm(fltw * fltw_d, 0.0F, max_fltw);
       if (p.m_lpf_freq != 1.0f) {
         fltdp += (sample - fltp) * fltw;
         fltdp -= fltdp * fltdmp;
@@ -276,12 +261,8 @@ void SynthSample(int length, float * buffer) {
       // final accumulation and envelope application
       ssample += sample * env_vol;
     }
-    ssample = ssample / 8 * master_vol;
-
-    ssample *= 2.0f * sound_vol;
-
-    if (ssample > 1.0f) ssample = 1.0f;
-    if (ssample < -1.0f) ssample = -1.0f;
+    ssample = sound::apply_volumes(ssample / supersample_count, sound_vol);
+    ssample = sound::norm(ssample);
     *buffer++ = ssample;
   }
 }
@@ -337,9 +318,7 @@ static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
     memset(fbuf, 0, sizeof(fbuf));
     SynthSample(l, fbuf);
     while (l--) {
-      float f = fbuf[l];
-      if (f < -1.0) f = -1.0;
-      if (f > 1.0) f = 1.0;
+      float f = sound::norm(fbuf[l]);
       ((Sint16 *)stream)[l] = (Sint16)(f * 32767);
     }
   } else
@@ -349,9 +328,7 @@ static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
 
 void wav_file_write_sample(FILE * output, float sample) {
   constexpr auto arbitrary_gain = 4.0F;
-  auto ssample = sample * arbitrary_gain; // arbitrary gain to get reasonable output volume...
-  if (ssample > 1.0F) ssample = 1.0F;
-  if (ssample < -1.0F) ssample = -1.0F;
+  auto ssample = sound::norm(sample * arbitrary_gain); // arbitrary gain to get reasonable output volume...
 
   if (wav_bits == 16) {
     constexpr const auto threshold = 32000; // TODO: Why not 32767?
@@ -446,13 +423,9 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   float mv = (float)(mouse_x - mouse_px);
   if (vselected != &value) mv = 0.0f;
   if (bipolar) {
-    value += mv * 0.005f;
-    if (value < -1.0f) value = -1.0f;
-    if (value > 1.0f) value = 1.0f;
+    value = sound::norm(value + mv * 0.005f);
   } else {
-    value += mv * 0.0025f;
-    if (value < 0.0f) value = 0.0f;
-    if (value > 1.0f) value = 1.0f;
+    value = sound::norm(value + mv * 0.0025f, 0, 1);
   }
   DrawBar(x - 1, y, 102, 10, 0x000000);
   int ival = (int)(value * 99);
