@@ -69,7 +69,6 @@ float square_slide;
 int env_stage;
 int env_time;
 int env_length[3];
-float env_vol;
 float fphase;
 float fdphase;
 int iphase;
@@ -135,7 +134,6 @@ void ResetSample(bool restart) {
     vib_speed = pow(p.m_vib_speed, 2.0f) * 0.01f;
     vib_amp = p.m_vib_strength * 0.5f;
     // reset envelope
-    env_vol = 0.0f;
     env_stage = 0;
     env_time = 0;
     env_length[0] = (int)(p.m_env_attack * p.m_env_attack * 100000.0f);
@@ -201,6 +199,7 @@ void SynthSample(int length, float * buffer) {
       env_stage++;
       if (env_stage == 3) playing_sample = false;
     }
+    float env_vol = 0.0F;
     if (env_stage == 0) env_vol = (float)env_time / env_length[0];
     if (env_stage == 1) env_vol = 1.0f + pow(1.0f - (float)env_time / env_length[1], 1.0f) * 2.0f * p.m_env_punch;
     if (env_stage == 2) env_vol = 1.0f - (float)env_time / env_length[2];
