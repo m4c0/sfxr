@@ -87,8 +87,9 @@ int arp_time;
 int arp_limit;
 double arp_mod;
 
-static sound::phase_shift g_phs;   // NOLINT
-static sound::envelope<int> g_env; // NOLINT
+static sound::waveform::fn_t g_waveform; // NOLINT
+static sound::phase_shift g_phs;         // NOLINT
+static sound::envelope<int> g_env;       // NOLINT
 
 float * vselected = NULL;
 int vcurbutton = -1;
@@ -152,6 +153,10 @@ void ResetSample(bool restart) {
     rep_limit = (int)(pow(1.0f - p.m_repeat_speed, 2.0f) * 20000 + 32);
     if (p.m_repeat_speed == 0.0f) rep_limit = 0;
   }
+
+  constexpr const auto waveform_fns =
+      std::array { sound::waveform::square, sound::waveform::sawtooth, sound::waveform::sine, sound::waveform::noise };
+  g_waveform = waveform_fns.at(wave_type);
 }
 
 void PlaySample() {
@@ -216,20 +221,7 @@ void SynthSample(int length, float * buffer) {
       phase++;
       // base waveform
       float fp = (float)phase / period;
-      switch (wave_type) {
-      case 0: // square
-        sample = sound::waveform::square(fp, square_duty);
-        break;
-      case 1: // sawtooth
-        sample = sound::waveform::sawtooth(fp);
-        break;
-      case 2: // sine
-        sample = sound::waveform::sine(fp);
-        break;
-      case 3: // noise
-        sample = sound::waveform::noise();
-        break;
-      }
+      sample = g_waveform(fp, square_duty);
       // lp filter
       constexpr const auto max_fltw = 0.01F;
       float pp = fltp;

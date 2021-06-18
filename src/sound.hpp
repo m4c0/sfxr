@@ -118,19 +118,21 @@ namespace sound {
 }
 
 namespace sound::waveform {
+  using fn_t = float (*)(float, float);
+
   static auto square(float phase, float duty) {
     constexpr const auto amplitude = 0.5F;
     return (frac(phase) < duty) ? amplitude : -amplitude;
   }
-  static auto sawtooth(float phase) {
+  static auto sawtooth(float phase, float /*duty*/) {
     return 1.0F - frac(phase) * 2;
   }
-  static auto sine(float phase) {
+  static auto sine(float phase, float /*duty*/) {
     constexpr const auto pi = 3.14159265358979323F;
     constexpr const auto two_times_pi = 2.0F * pi;
     return std::sinf(phase * two_times_pi);
   }
-  static auto noise() {
+  static auto noise(float /*phase*/, float /*duty*/) {
     static auto seed = cemath::seed();
     return cemath::uniform_distribution_n(seed, -1.0F, 1.0F);
   }
