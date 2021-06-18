@@ -69,7 +69,6 @@ float square_slide;
 int env_time;
 float fphase;
 float fdphase;
-int ipp;
 float fltp;
 float fltdp;
 float fltw;
@@ -108,7 +107,6 @@ static constexpr auto penv_to_int(float penv) {
 }
 
 void ResetSample(bool restart) {
-  if (!restart) phase = 0;
   fperiod = 100.0 / (p.m_base_freq * p.m_base_freq + 0.001);
   period = (int)fperiod;
   fmaxperiod = 100.0 / (p.m_freq_limit * p.m_freq_limit + 0.001);
@@ -124,6 +122,7 @@ void ResetSample(bool restart) {
   arp_limit = (int)(pow(1.0f - p.m_arp_speed, 2.0f) * 20000 + 32);
   if (p.m_arp_speed == 1.0f) arp_limit = 0;
   if (!restart) {
+    phase = 0;
     // reset filter
     fltp = 0.0f;
     fltdp = 0.0f;
@@ -146,7 +145,6 @@ void ResetSample(bool restart) {
     if (p.m_pha_offset < 0.0f) fphase = -fphase;
     fdphase = pow(p.m_pha_ramp, 2.0f) * 1.0f;
     if (p.m_pha_ramp < 0.0f) fdphase = -fdphase;
-    ipp = 0;
     g_phs = {};
 
     rep_time = 0;
@@ -215,10 +213,9 @@ void SynthSample(int length, float * buffer) {
 
     constexpr const auto supersample_count = 8;
     float ssample = 0.0f;
-    for (int si = 0; si < supersample_count; si++) // 8x supersampling
+    for (int si = 0; si < supersample_count; si++, phase++) // 8x supersampling
     {
       float sample = 0.0f;
-      phase++;
       // base waveform
       float fp = (float)phase / period;
       sample = g_waveform(fp, square_duty);
@@ -239,8 +236,7 @@ void SynthSample(int length, float * buffer) {
       fltphp -= fltphp * flthp;
       sample = fltphp;
       // phaser
-      sample = g_phs.shift(ipp, fphase, sample);
-      ipp++;
+      sample = g_phs.shift(phase, fphase, sample);
       // final accumulation and envelope application
       ssample += sample * env_vol;
     }
