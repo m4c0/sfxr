@@ -69,8 +69,6 @@ float square_slide;
 int env_time;
 float fphase;
 float fdphase;
-int iphase;
-float phaser_buffer[1024];
 int ipp;
 float fltp;
 float fltdp;
@@ -89,6 +87,7 @@ int arp_time;
 int arp_limit;
 double arp_mod;
 
+static sound::phase_shift g_phs;   // NOLINT
 static sound::envelope<int> g_env; // NOLINT
 
 float * vselected = NULL;
@@ -146,10 +145,8 @@ void ResetSample(bool restart) {
     if (p.m_pha_offset < 0.0f) fphase = -fphase;
     fdphase = pow(p.m_pha_ramp, 2.0f) * 1.0f;
     if (p.m_pha_ramp < 0.0f) fdphase = -fdphase;
-    iphase = abs((int)fphase);
     ipp = 0;
-    for (int i = 0; i < 1024; i++)
-      phaser_buffer[i] = 0.0f;
+    g_phs = {};
 
     rep_time = 0;
     rep_limit = (int)(pow(1.0f - p.m_repeat_speed, 2.0f) * 20000 + 32);
@@ -204,8 +201,6 @@ void SynthSample(int length, float * buffer) {
 
     // phaser step
     fphase += fdphase;
-    iphase = abs((int)fphase);
-    if (iphase > 1023) iphase = 1023;
 
     if (flthp_d != 0.0f) {
       flthp *= flthp_d;
@@ -252,9 +247,8 @@ void SynthSample(int length, float * buffer) {
       fltphp -= fltphp * flthp;
       sample = fltphp;
       // phaser
-      phaser_buffer[ipp & 1023] = sample;
-      sample += phaser_buffer[(ipp - iphase + 1024) & 1023];
-      ipp = (ipp + 1) & 1023;
+      sample = g_phs.shift(ipp, fphase, sample);
+      ipp++;
       // final accumulation and envelope application
       ssample += sample * env_vol;
     }
@@ -422,7 +416,7 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
   if (bipolar) {
     value = sound::norm(value + mv * 0.005f);
   } else {
-    value = sound::norm(value + mv * 0.0025f, 0, 1);
+    value = sound::norm(value + mv * 0.0025f, 0.0F, 1.0F);
   }
   DrawBar(x - 1, y, 102, 10, 0x000000);
   int ival = (int)(value * 99);

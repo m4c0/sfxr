@@ -53,9 +53,10 @@ namespace sound {
     constexpr const auto no_idea_why = 2.0F;
     return f * master_vol * (no_idea_why * vol);
   }
-  static constexpr auto norm(float f, float min, float max) noexcept {
-    if (f > max) f = max;
-    if (f < min) f = min;
+  template<class Tp>
+  static constexpr auto norm(Tp f, Tp min, Tp max) noexcept {
+    if (f > max) return max;
+    if (f < min) return min;
     return f;
   }
   static constexpr auto norm(float f) noexcept {
@@ -94,6 +95,24 @@ namespace sound {
         return 1.0F - ftime / m_decay;
       }
       return std::numeric_limits<float>::quiet_NaN();
+    }
+  };
+
+  class phase_shift {
+    static constexpr const auto buf_size = 1024;
+    std::array<float, buf_size> m_buffer {};
+
+  public:
+    [[nodiscard]] constexpr float shift(int cur_time, float phase, float cur_sample) noexcept {
+      int ipp = cur_time % buf_size;
+      m_buffer.at(ipp) = cur_sample;
+
+      auto i_phase = static_cast<int>(phase);
+      auto abs_phase = i_phase < 0 ? -i_phase : i_phase;
+
+      int iphase = norm(abs_phase, 0, buf_size - 1);
+      auto phased_sample = m_buffer.at((ipp - iphase + buf_size) % buf_size);
+      return cur_sample + phased_sample;
     }
   };
 }
