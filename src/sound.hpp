@@ -81,7 +81,7 @@ namespace sound {
     [[nodiscard]] constexpr float volume(Tp time, float punch) const noexcept {
       if (time < m_attack) {
         auto ftime = static_cast<float>(time);
-        return time / m_attack;
+        return ftime / m_attack;
       }
       time -= m_attack;
       if (time < m_sustain) {
