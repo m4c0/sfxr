@@ -66,7 +66,6 @@ double fdslide;
 int period;
 float square_duty;
 float square_slide;
-int env_time;
 float fphase;
 float fdphase;
 float fltp;
@@ -138,7 +137,6 @@ void ResetSample(bool restart) {
     vib_speed = pow(p.m_vib_speed, 2.0f) * 0.01f;
     vib_amp = p.m_vib_strength * 0.5f;
     // reset envelope
-    env_time = 0;
     g_env = { penv_to_int(p.m_env_attack), penv_to_int(p.m_env_sustain), penv_to_int(p.m_env_decay) };
 
     fphase = pow(p.m_pha_offset, 2.0f) * 1020.0f;
@@ -191,12 +189,9 @@ void SynthSample(int length, float * buffer) {
     }
     period = (int)rfperiod;
     if (period < 8) period = 8;
-    square_duty += square_slide;
-    if (square_duty < 0.0f) square_duty = 0.0f;
-    if (square_duty > 0.5f) square_duty = 0.5f;
     // volume envelope
-    env_time++;
-    float env_vol = g_env.volume(env_time, p.m_env_punch);
+    constexpr const auto supersample_count = 8;
+    float env_vol = g_env.volume(phase / supersample_count, p.m_env_punch);
     if (std::isnan(env_vol)) {
       playing_sample = false;
       env_vol = 0;
@@ -211,14 +206,15 @@ void SynthSample(int length, float * buffer) {
       if (flthp > 0.1f) flthp = 0.1f;
     }
 
-    constexpr const auto supersample_count = 8;
+    const auto sq_duty = sound::square_duty(square_duty, square_slide, phase);
+
     float ssample = 0.0f;
     for (int si = 0; si < supersample_count; si++, phase++) // 8x supersampling
     {
       float sample = 0.0f;
       // base waveform
       float fp = (float)phase / period;
-      sample = g_waveform(fp, square_duty);
+      sample = g_waveform(fp, sq_duty);
       // lp filter
       constexpr const auto max_fltw = 0.01F;
       float pp = fltp;

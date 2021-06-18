@@ -67,6 +67,14 @@ namespace sound {
     return std::modf(f, &i);
   }
 
+  static constexpr float square_duty(float start, float delta, int phase) {
+    constexpr const auto min_duty = 0.0F;
+    constexpr const auto max_duty = 0.5F;
+    const auto fphase = static_cast<float>(phase);
+    const auto raw = start + fphase * delta;
+    return norm(raw, min_duty, max_duty);
+  }
+
   template<class Tp>
   class envelope {
     Tp m_attack;
