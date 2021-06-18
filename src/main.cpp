@@ -100,10 +100,6 @@ int vcurbutton = -1;
 int wav_bits = 16;
 int wav_freq = 44100;
 
-int file_sampleswritten;
-float filesample = 0.0f;
-int fileacc = 0;
-
 void ResetParams() {
   wave_type = 0;
   p = {};
@@ -171,7 +167,7 @@ void PlaySample() {
   playing_sample = true;
 }
 
-void SynthSample(int length, float * buffer, FILE * file) {
+void SynthSample(int length, float * buffer) {
   for (int i = 0; i < length; i++) {
     if (!playing_sample) break;
 
@@ -284,33 +280,9 @@ void SynthSample(int length, float * buffer, FILE * file) {
 
     ssample *= 2.0f * sound_vol;
 
-    if (buffer != NULL) {
-      if (ssample > 1.0f) ssample = 1.0f;
-      if (ssample < -1.0f) ssample = -1.0f;
-      *buffer++ = ssample;
-    }
-    if (file != NULL) {
-      // quantize depending on format
-      // accumulate/count to accomodate variable sample rate?
-      ssample *= 4.0f; // arbitrary gain to get reasonable output volume...
-      if (ssample > 1.0f) ssample = 1.0f;
-      if (ssample < -1.0f) ssample = -1.0f;
-      filesample += ssample;
-      fileacc++;
-      if (wav_freq == 44100 || fileacc == 2) {
-        filesample /= fileacc;
-        fileacc = 0;
-        if (wav_bits == 16) {
-          short isample = (short)(filesample * 32000);
-          fwrite(&isample, 1, 2, file);
-        } else {
-          unsigned char isample = (unsigned char)(filesample * 127 + 128);
-          fwrite(&isample, 1, 1, file);
-        }
-        filesample = 0.0f;
-      }
-      file_sampleswritten++;
-    }
+    if (ssample > 1.0f) ssample = 1.0f;
+    if (ssample < -1.0f) ssample = -1.0f;
+    *buffer++ = ssample;
   }
 }
 
@@ -330,7 +302,7 @@ class sfxr_producer : public audio::producer {
 public:
   void fill_buffer(std::span<float> data) override {
     if (playing_sample && !mute_stream) {
-      SynthSample(static_cast<int>(data.size()), data.data(), nullptr);
+      SynthSample(static_cast<int>(data.size()), data.data());
     } else {
       std::fill(data.begin(), data.end(), 0);
     }
@@ -349,7 +321,7 @@ static int AudioCallback(
   (void)outTime;
 
   if (playing_sample && !mute_stream)
-    SynthSample(framesPerBuffer, out, NULL);
+    SynthSample(framesPerBuffer, out);
   else
     for (int i = 0; i < framesPerBuffer; i++)
       *out++ = 0.0f;
@@ -363,7 +335,7 @@ static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
     unsigned int l = len / 2;
     float fbuf[l];
     memset(fbuf, 0, sizeof(fbuf));
-    SynthSample(l, fbuf, NULL);
+    SynthSample(l, fbuf);
     while (l--) {
       float f = fbuf[l];
       if (f < -1.0) f = -1.0;
@@ -375,6 +347,33 @@ static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
 }
 #endif
 
+void wav_file_write_sample(FILE * output, float sample) {
+  constexpr auto arbitrary_gain = 4.0F;
+  auto ssample = sample * arbitrary_gain; // arbitrary gain to get reasonable output volume...
+  if (ssample > 1.0F) ssample = 1.0F;
+  if (ssample < -1.0F) ssample = -1.0F;
+
+  if (wav_bits == 16) {
+    constexpr const auto threshold = 32000; // TODO: Why not 32767?
+    auto isample = static_cast<std::int16_t>(ssample * threshold);
+    fwrite(&isample, 1, 2, output);
+  } else {
+    auto isample = static_cast<unsigned char>(ssample * 127 + 128);
+    fwrite(&isample, 1, 1, output);
+  }
+}
+void wav_file_next_sample(FILE * output) {
+  std::array<float, 2> data {};
+  SynthSample(2, data.data());
+
+  if (wav_freq == 44100) {
+    wav_file_write_sample(output, data.at(0));
+    wav_file_write_sample(output, data.at(1));
+  } else {
+    auto sample = (data.at(0) + data.at(1)) / 2;
+    wav_file_write_sample(output, sample);
+  }
+}
 bool ExportWAV(char * filename) {
   FILE * foutput = fopen(filename, "wb");
   if (!foutput) return false;
@@ -385,6 +384,8 @@ bool ExportWAV(char * filename) {
   fwrite("RIFF", 4, 1, foutput); // "RIFF"
   dword = 0;
   fwrite(&dword, 1, 4, foutput); // remaining file size
+  auto riff_start = ftell(foutput);
+
   fwrite("WAVE", 4, 1, foutput); // "WAVE"
 
   fwrite("fmt ", 4, 1, foutput); // "fmt "
@@ -405,27 +406,29 @@ bool ExportWAV(char * filename) {
 
   fwrite("data", 4, 1, foutput); // "data"
   dword = 0;
-  int foutstream_datasize = ftell(foutput);
   fwrite(&dword, 1, 4, foutput); // chunk size
+  auto data_start = ftell(foutput);
 
   // write sample data
   mute_stream = true;
-  file_sampleswritten = 0;
-  filesample = 0.0f;
-  fileacc = 0;
   PlaySample();
-  while (playing_sample)
-    SynthSample(256, NULL, foutput);
+  while (playing_sample) {
+    wav_file_next_sample(foutput);
+  }
   mute_stream = false;
 
+  auto data_end = ftell(foutput);
+  auto riff_end = ftell(foutput);
+
   // seek back to header and write size info
-  fseek(foutput, 4, SEEK_SET);
-  dword = 0;
-  dword = foutstream_datasize - 4 + file_sampleswritten * wav_bits / 8;
+  fseek(foutput, riff_start - 4, SEEK_SET);
+  dword = riff_end - riff_start;
   fwrite(&dword, 1, 4, foutput); // remaining file size
-  fseek(foutput, foutstream_datasize, SEEK_SET);
-  dword = file_sampleswritten * wav_bits / 8;
+
+  fseek(foutput, data_start - 4, SEEK_SET);
+  dword = data_end - data_start;
   fwrite(&dword, 1, 4, foutput); // chunk size (data)
+
   fclose(foutput);
 
   return true;
