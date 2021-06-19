@@ -58,7 +58,6 @@ int wave_type;
 float sound_vol = 0.5f;
 
 bool playing_sample = false;
-int phase;
 double fperiod;
 double fmaxperiod;
 double fslide;
@@ -85,9 +84,11 @@ int arp_time;
 int arp_limit;
 double arp_mod;
 
-static sound::waveform::fn_t g_waveform; // NOLINT
-static sound::phase_shift g_phs;         // NOLINT
 static sound::envelope<int> g_env;       // NOLINT
+static sound::phase_shift g_phs;         // NOLINT
+static int g_sample_phase;               // NOLINT
+static int g_supersample_phase;          // NOLINT
+static sound::waveform::fn_t g_waveform; // NOLINT
 
 float * vselected = NULL;
 int vcurbutton = -1;
@@ -121,7 +122,8 @@ void ResetSample(bool restart) {
   arp_limit = (int)(pow(1.0f - p.m_arp_speed, 2.0f) * 20000 + 32);
   if (p.m_arp_speed == 1.0f) arp_limit = 0;
   if (!restart) {
-    phase = 0;
+    g_sample_phase = 0;
+    g_supersample_phase = 0;
     // reset filter
     fltp = 0.0f;
     fltdp = 0.0f;
@@ -161,7 +163,7 @@ void PlaySample() {
 }
 
 void SynthSample(int length, float * buffer) {
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length; i++, g_sample_phase++) {
     if (!playing_sample) break;
 
     rep_time++;
@@ -190,8 +192,7 @@ void SynthSample(int length, float * buffer) {
     period = (int)rfperiod;
     if (period < 8) period = 8;
     // volume envelope
-    constexpr const auto supersample_count = 8;
-    float env_vol = g_env.volume(phase / supersample_count, p.m_env_punch);
+    float env_vol = g_env.volume(g_sample_phase, p.m_env_punch);
     if (std::isnan(env_vol)) {
       playing_sample = false;
       env_vol = 0;
@@ -206,14 +207,15 @@ void SynthSample(int length, float * buffer) {
       if (flthp > 0.1f) flthp = 0.1f;
     }
 
-    const auto sq_duty = sound::square_duty(square_duty, square_slide, phase);
+    const auto sq_duty = sound::square_duty(square_duty, square_slide, g_sample_phase);
 
     float ssample = 0.0f;
-    for (int si = 0; si < supersample_count; si++, phase++) // 8x supersampling
+    constexpr const auto supersample_count = 8;
+    for (int si = 0; si < supersample_count; si++, g_supersample_phase++) // 8x supersampling
     {
       float sample = 0.0f;
       // base waveform
-      float fp = (float)phase / period;
+      float fp = (float)g_supersample_phase / period;
       sample = g_waveform(fp, sq_duty);
       // lp filter
       constexpr const auto max_fltw = 0.01F;
@@ -232,7 +234,7 @@ void SynthSample(int length, float * buffer) {
       fltphp -= fltphp * flthp;
       sample = fltphp;
       // phaser
-      sample = g_phs.shift(phase, fphase, sample);
+      sample = g_phs.shift(g_supersample_phase, fphase, sample);
       // final accumulation and envelope application
       ssample += sample * env_vol;
     }
