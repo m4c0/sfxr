@@ -1,7 +1,7 @@
 #pragma once
 
-#include "m4c0.audio.hpp"
 #include "m4c0.ddk.hpp"
+#include "m4c0/audio.hpp"
 
 #include <cstdint>
 #include <map>

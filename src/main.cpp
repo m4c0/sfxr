@@ -252,11 +252,11 @@ bool mute_stream;
 
 #if M4C0
 static auto & streamer() {
-  static auto i = audio::streamer::create();
+  static auto i = m4c0::audio::streamer::create();
   return i;
 }
 
-class sfxr_producer : public audio::producer {
+class sfxr_producer : public m4c0::audio::producer {
 public:
   void fill_buffer(std::span<float> data) override {
     if (playing_sample && !mute_stream) {
