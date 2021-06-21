@@ -251,11 +251,6 @@ PortAudioStream * stream;
 bool mute_stream;
 
 #if M4C0
-static auto & streamer() {
-  static auto i = m4c0::audio::streamer::create();
-  return i;
-}
-
 class sfxr_producer : public m4c0::audio::producer {
 public:
   void fill_buffer(std::span<float> data) override {
@@ -890,7 +885,8 @@ void ddkInit() {
   ResetParams();
 
 #if M4C0
-  streamer()->producer() = std::make_unique<sfxr_producer>();
+  static auto streamer = m4c0::audio::streamer::create();
+  streamer->producer() = std::make_unique<sfxr_producer>();
 #elif defined(WIN32)
   // Init PortAudio
   SetEnvironmentVariable("PA_MIN_LATENCY_MSEC", "75"); // WIN32
