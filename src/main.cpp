@@ -11,6 +11,7 @@
 #include "parameters.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
+#include "sprite_set.hpp"
 
 #include <algorithm>
 #include <array>
@@ -28,16 +29,9 @@ float frnd(float range) {
   return (float)rnd(10000) / 10000 * range;
 }
 
-struct Spriteset {
-  DWORD * data;
-  int width;
-  int height;
-  int pitch;
-};
-
 parameters p;
-Spriteset font;
-Spriteset ld48;
+sprite_set font;
+sprite_set ld48;
 
 int wave_type;
 
@@ -672,7 +666,7 @@ void DrawButtonsAndWhereabouts() {
 
   DrawBar(110, 0, 2, 480, bar_color);
   DrawText(120, 10, txt_color, "MANUAL SETTINGS");
-  DrawSprite(ld48, 8, 440, 0, 0xB0A080);
+  ld48.draw(8, 440, 0, 0xB0A080);
 
   if (Button(130, 30, wave_type == 0, "SQUAREWAVE", 10)) wave_type = 0;
   if (Button(250, 30, wave_type == 1, "SAWTOOTH", 11)) wave_type = 1;
@@ -796,16 +790,8 @@ void ddkInit(const m4c0::native_handles * np) {
 
   ddkSetMode(640, 480, 32, 60, DDK_WINDOW, "sfxr");
 
-  if (LoadTGA(np, font, "font") < 0) {
-    m4c0::log::error("Error could not open font.tga");
-    std::terminate();
-  }
-  if (LoadTGA(np, ld48, "ld48") < 0) {
-    m4c0::log::error("Error could not open ld48.tga");
-    std::terminate();
-  }
-
-  ld48.width = ld48.pitch;
+  font = sprite_set::load(np, "font", true);
+  ld48 = sprite_set::load(np, "ld48", false);
 
   input = new DPInput(hWndMain, hInstanceMain); // WIN32
 
@@ -817,6 +803,4 @@ void ddkInit(const m4c0::native_handles * np) {
 
 void ddkFree() {
   delete input;
-  free(ld48.data);
-  free(font.data);
 }
