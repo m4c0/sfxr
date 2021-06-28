@@ -39,39 +39,11 @@ int LoadTGA(Spriteset & tiles, const char * filename) {
 }
 
 void ClearScreen(DWORD color) {
-  for (int y = 0; y < 480; y++) {
-    int offset = y * ddkpitch;
-    for (int x = 0; x < 640; x += 8) {
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-      ddkscreen32[offset++] = color;
-    }
-  }
+  draw_bar(0, 0, 640, 480, color);
 }
 
 void DrawBar(int sx, int sy, int w, int h, DWORD color) {
-  for (int y = sy; y < sy + h; y++) {
-    int offset = y * ddkpitch + sx;
-    int x1 = 0;
-    if (w > 8)
-      for (x1 = 0; x1 < w - 8; x1 += 8) {
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-        ddkscreen32[offset++] = color;
-      }
-    for (int x = x1; x < w; x++)
-      ddkscreen32[offset++] = color;
-  }
+  draw_bar(sx, sy, w, h, color);
 }
 
 void DrawBox(int sx, int sy, int w, int h, DWORD color) {
@@ -83,17 +55,17 @@ void DrawBox(int sx, int sy, int w, int h, DWORD color) {
 
 void DrawSprite(Spriteset & sprites, int sx, int sy, int i, DWORD color) {
   for (int y = 0; y < sprites.height; y++) {
-    int offset = (sy + y) * ddkpitch + sx;
+    auto scr_y = sy + y;
     int spoffset = y * sprites.pitch + i * sprites.width;
     if (color & 0xFF000000)
       for (int x = 0; x < sprites.width; x++) {
         DWORD p = sprites.data[spoffset++];
-        if (p != 0x300030) ddkscreen32[offset + x] = p;
+        if (p != 0x300030) draw_bar(sx + x, sy + y, 1, 1, p);
       }
     else
       for (int x = 0; x < sprites.width; x++) {
         DWORD p = sprites.data[spoffset++];
-        if (p != 0x300030) ddkscreen32[offset + x] = color;
+        if (p != 0x300030) draw_bar(sx + x, sy + y, 1, 1, color);
       }
   }
 }

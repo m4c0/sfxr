@@ -24,5 +24,5 @@ extern std::atomic_bool mouse_leftclick; // NOLINT
 extern std::function<void()> lock;   // NOLINT
 extern std::function<void()> unlock; // NOLINT
 
-extern std::function<void(int, int)> set_screen_size;            // NOLINT
-extern std::function<void(unsigned, std::uint32_t)> write_pixel; // NOLINT
+extern std::function<void(int, int)> set_screen_size;                   // NOLINT
+extern std::function<void(int, int, int, int, std::uint32_t)> draw_bar; // NOLINT

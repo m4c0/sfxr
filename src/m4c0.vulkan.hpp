@@ -70,10 +70,10 @@ public:
 };
 
 struct instance {
-  alignas(2) std::int16_t x, y;
+  std::int16_t x, y, z, w;
   std::uint32_t rgba;
 };
-static_assert(sizeof(instance) == sizeof(std::uint64_t));
+static_assert(sizeof(instance) == 3 * sizeof(std::uint32_t));
 
 class color_mem {
   using buffer = m4c0::vulkan::buffer;
@@ -133,14 +133,23 @@ public:
 
 class pixel_guard {
   decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
+  instance * m_ptr;
+  int m_pos = 0;
+
+  static constexpr const auto conv = [](auto i) {
+    return static_cast<std::int16_t>(i);
+  };
+
+  void draw(std::int16_t sx, std::int16_t sy, std::int16_t w, std::int16_t h, std::uint32_t color) {
+    m_ptr[m_pos++] = instance { sx, sy, w, h, color };
+  }
 
 public:
-  explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem) : m_guard(mem->map_all()) {
-    auto * ptr = m_guard.pointer<instance>();
-    write_pixel = [ptr, w](unsigned pos, unsigned rgba) {
-      std::int16_t x = pos % w;
-      std::int16_t y = pos / w;
-      ptr[pos] = instance { x, y, rgba }; // NOLINT
+  explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem)
+    : m_guard(mem->map_all())
+    , m_ptr(m_guard.pointer<instance>()) {
+    draw_bar = [this](int sx, int sy, int w, int h, std::uint32_t color) {
+      draw(conv(sx), conv(sy), conv(w), conv(h), color);
     };
   }
 };

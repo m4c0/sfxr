@@ -18,25 +18,6 @@ static constexpr const auto DIK_RETURN = '\n';
 static bool mouse_right = false;      // NOLINT
 static bool mouse_rightclick = false; // NOLINT
 
-class pixel {
-  unsigned m_index;
-
-public:
-  explicit constexpr pixel(unsigned i) : m_index(i) {
-  }
-
-  pixel & operator=(std::uint32_t rgba) {
-    write_pixel(m_index, rgba);
-    return *this;
-  }
-};
-static class {
-public:
-  [[nodiscard]] pixel operator[](unsigned idx) noexcept {
-    return pixel { idx };
-  }
-} ddkscreen32; // NOLINT
-
 class DPInput {
 public:
   DPInput(int /*hWnd*/, int /*hInst*/) {
