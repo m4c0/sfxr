@@ -5,34 +5,18 @@
 
 */
 
-#if M4C0
 #include "m4c0.hpp"
-#elif defined(WIN32)
-#include "ddrawkit.h"
-#else
-#include "sdlkit.h"
-#endif
-
 #include "parameters.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
 
 #include <algorithm>
 #include <array>
-#include <math.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
-#if M4C0
-#elif defined(WIN32)
-#include "DPInput.h"      // WIN32
-#include "fileselector.h" // WIN32
-#include "pa/portaudio.h"
-#else
-#include "SDL.h"
-#endif
+#include <cmath>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 
 #define rnd(n) (rand() % (n + 1))
 
@@ -245,12 +229,8 @@ void SynthSample(int length, float * buffer) {
 }
 
 DPInput * input;
-#if defined(WIN32) && !M4C0
-PortAudioStream * stream;
-#endif
 bool mute_stream;
 
-#if M4C0
 class sfxr_producer : public m4c0::audio::producer {
 public:
   void fill_buffer(std::span<float> data) override {
@@ -261,42 +241,6 @@ public:
     }
   }
 };
-#elif defined(WIN32)
-// ancient portaudio stuff
-static int AudioCallback(
-    void * inputBuffer,
-    void * outputBuffer,
-    unsigned long framesPerBuffer,
-    PaTimestamp outTime,
-    void * userData) {
-  float * out = (float *)outputBuffer;
-  float * in = (float *)inputBuffer;
-  (void)outTime;
-
-  if (playing_sample && !mute_stream)
-    SynthSample(framesPerBuffer, out);
-  else
-    for (int i = 0; i < framesPerBuffer; i++)
-      *out++ = 0.0f;
-
-  return 0;
-}
-#else
-// lets use SDL in stead
-static void SDLAudioCallback(void * userdata, Uint8 * stream, int len) {
-  if (playing_sample && !mute_stream) {
-    unsigned int l = len / 2;
-    float fbuf[l];
-    memset(fbuf, 0, sizeof(fbuf));
-    SynthSample(l, fbuf);
-    while (l--) {
-      float f = sound::norm(fbuf[l]);
-      ((Sint16 *)stream)[l] = (Sint16)(f * 32767);
-    }
-  } else
-    memset(stream, 0, len);
-}
-#endif
 
 void wav_file_write_sample(FILE * output, float sample) {
   constexpr auto arbitrary_gain = 4.0F;
@@ -385,14 +329,14 @@ bool ExportWAV(char * filename) {
 
 #include "tools.h"
 
-void Slider(int x, int y, float & value, bool bipolar, const char * text) {
+void Slider(int x, int y, float & value, bool bipolar, const char * text, bool enabled = true) {
   bool hover = false;
   if (MouseInBox(x, y, 100, 10)) {
     if (mouse_leftclick) vselected = &value;
     if (mouse_rightclick) value = 0.0f;
     hover = true;
   }
-  float mv = (float)(mouse_x - mouse_px);
+  auto mv = static_cast<float>(mouse_x - mouse_px);
   if (vselected != &value) mv = 0.0f;
   if (bipolar) {
     value = sound::norm(value + mv * 0.005f);
@@ -409,8 +353,7 @@ void Slider(int x, int y, float & value, bool bipolar, const char * text) {
     DrawBar(x + 50, y - 1, 1, 3, 0x000000);
     DrawBar(x + 50, y + 8, 1, 3, 0x000000);
   }
-  DWORD tcol = 0x000000;
-  if (wave_type != 0 && (&value == &p.m_duty || &value == &p.m_duty_ramp)) tcol = 0x808080;
+  DWORD tcol = enabled ? 0x000000 : 0x808080;
   DrawText(x - 4 - strlen(text) * 8, y + 1, tcol, text);
 }
 
@@ -438,8 +381,7 @@ bool Button(int x, int y, bool highlight, const char * text, int id) {
   DrawBar(x - 1, y - 1, 102, 19, color1);
   DrawBar(x, y, 100, 17, color2);
   DrawText(x + 5, y + 5, color3, text);
-  if (current && hover && !mouse_left) return true;
-  return false;
+  return current && hover && !mouse_left;
 }
 
 static bool should_redraw() {
@@ -695,10 +637,7 @@ static void do_freq_change() {
     wav_freq = 44100;
 }
 static void do_bit_change() {
-  if (wav_bits == 16)
-    wav_bits = 8;
-  else
-    wav_bits = 16;
+  wav_bits = (wav_bits == 16) ? 8 : 16;
 }
 
 static constexpr const auto bg_color = 0xC0B090;
@@ -790,8 +729,8 @@ void DrawSlidersAndWhereabouts() {
 
   DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
-  Slider(xpos, (ypos++) * 18, p.m_duty, false, "SQUARE DUTY");
-  Slider(xpos, (ypos++) * 18, p.m_duty_ramp, true, "DUTY SWEEP");
+  Slider(xpos, (ypos++) * 18, p.m_duty, false, "SQUARE DUTY", wave_type == 0);
+  Slider(xpos, (ypos++) * 18, p.m_duty_ramp, true, "DUTY SWEEP", wave_type == 0);
 
   DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
 
@@ -884,46 +823,12 @@ void ddkInit() {
 
   ResetParams();
 
-#if M4C0
   static auto streamer = m4c0::audio::streamer::create();
   streamer->producer() = std::make_unique<sfxr_producer>();
-#elif defined(WIN32)
-  // Init PortAudio
-  SetEnvironmentVariable("PA_MIN_LATENCY_MSEC", "75"); // WIN32
-  Pa_Initialize();
-  Pa_OpenDefaultStream(
-      &stream,
-      0,
-      1,
-      paFloat32, // output type
-      44100,
-      512, // samples per buffer
-      0,   // # of buffers
-      AudioCallback,
-      NULL);
-  Pa_StartStream(stream);
-#else
-  SDL_AudioSpec des;
-  des.freq = 44100;
-  des.format = AUDIO_S16SYS;
-  des.channels = 1;
-  des.samples = 512;
-  des.callback = SDLAudioCallback;
-  des.userdata = NULL;
-  VERIFY(!SDL_OpenAudio(&des, NULL));
-  SDL_PauseAudio(0);
-#endif
 }
 
 void ddkFree() {
   delete input;
   free(ld48.data);
   free(font.data);
-
-#if defined(WIN32) && !M4C0
-  // Close PortAudio
-  Pa_StopStream(stream);
-  Pa_CloseStream(stream);
-  Pa_Terminate();
-#endif
 }

@@ -1,4 +1,7 @@
 #pragma once
+
+#include "m4c0.hpp"
+
 #include <string.h>
 
 int LoadTGA(Spriteset & tiles, const char * filename) {
@@ -46,44 +49,22 @@ void DrawBar(int sx, int sy, int w, int h, DWORD color) {
   draw_bar(sx, sy, w, h, color);
 }
 
-void DrawBox(int sx, int sy, int w, int h, DWORD color) {
-  DrawBar(sx, sy, w, 1, color);
-  DrawBar(sx, sy, 1, h, color);
-  DrawBar(sx + w, sy, 1, h, color);
-  DrawBar(sx, sy + h, w + 1, 1, color);
-}
-
 void DrawSprite(Spriteset & sprites, int sx, int sy, int i, DWORD color) {
   for (int y = 0; y < sprites.height; y++) {
-    auto scr_y = sy + y;
     int spoffset = y * sprites.pitch + i * sprites.width;
-    if (color & 0xFF000000)
-      for (int x = 0; x < sprites.width; x++) {
-        DWORD p = sprites.data[spoffset++];
-        if (p != 0x300030) draw_bar(sx + x, sy + y, 1, 1, p);
-      }
-    else
-      for (int x = 0; x < sprites.width; x++) {
-        DWORD p = sprites.data[spoffset++];
-        if (p != 0x300030) draw_bar(sx + x, sy + y, 1, 1, color);
-      }
+    for (int x = 0; x < sprites.width; x++) {
+      auto p = sprites.data[spoffset++];
+      if (p != 0x300030) draw_bar(sx + x, sy + y, 1, 1, color);
+    }
   }
 }
 
-void DrawText(int sx, int sy, DWORD color, const char * string, ...) {
-  char string2[256];
-  va_list args;
-
-  va_start(args, string);
-  vsprintf(string2, string, args);
-  va_end(args);
-
-  int len = strlen(string2);
+void DrawText(int sx, int sy, DWORD color, const char * string) {
+  auto len = strlen(string);
   for (int i = 0; i < len; i++)
-    DrawSprite(font, sx + i * 8, sy, string2[i] - ' ', color);
+    DrawSprite(font, sx + i * 8, sy, string[i] - ' ', color);
 }
 
 bool MouseInBox(int x, int y, int w, int h) {
-  if (mouse_x >= x && mouse_x < x + w && mouse_y >= y && mouse_y < y + h) return true;
-  return false;
+  return mouse_x >= x && mouse_x < x + w && mouse_y >= y && mouse_y < y + h;
 }
