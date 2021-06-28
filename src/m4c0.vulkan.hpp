@@ -1,5 +1,6 @@
 #pragma once
 
+#include "draw_context.hpp"
 #include "m4c0.ddk.hpp"
 #include "m4c0/casein/main.hpp"
 #include "m4c0/fuji/device_context.hpp"
@@ -132,7 +133,7 @@ public:
   }
 };
 
-class pixel_guard {
+class pixel_guard : public draw_context {
   decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
   instance * m_ptr;
   int m_pos = 0;
@@ -146,43 +147,40 @@ class pixel_guard {
   }
 
 public:
-  explicit pixel_guard(unsigned w, m4c0::vulkan::device_memory * mem)
+  explicit pixel_guard(m4c0::vulkan::device_memory * mem)
     : m_guard(mem->map_all())
     , m_ptr(m_guard.pointer<instance>()) {
     draw_bar = [this](int sx, int sy, int w, int h, std::uint32_t color) {
-      draw(conv(sx), conv(sy), conv(w), conv(h), color);
+      panel(sx, sy, w, h, color);
     };
+  }
+
+  void panel(int sx, int sy, int w, int h, std::uint32_t color) override {
+    draw(conv(sx), conv(sy), conv(w), conv(h), color);
   }
 };
 
 class dbl_buf {
   std::array<color_mem, 2> m_clr_mem;
-  std::unique_ptr<pixel_guard> m_guard;
   color_mem * m_front = &m_clr_mem.at(0);
   color_mem * m_back = &m_clr_mem.at(1);
-  std::mutex m_mutex {};
+
+  void calc_frame() {
+    pixel_guard pg { m_back->device_memory() };
+    if (ddkCalcFrame(&pg)) std::swap(m_front, m_back);
+  }
 
 public:
   dbl_buf(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
     : m_clr_mem({ color_mem { ld, w, h }, color_mem { ld, w, h } }) {
-    lock = [this, w, h]() {
-      auto guard = std::lock_guard { m_mutex };
-      m_guard = std::make_unique<pixel_guard>(w, m_back->device_memory());
-    };
-    unlock = [this]() {
-      auto guard = std::lock_guard { m_mutex };
-      m_guard.reset();
-      std::swap(m_front, m_back);
-    };
   }
+
   void build_secondary_command_buffer(VkCommandBuffer cb) {
-    ddkCalcFrame();
-    auto guard = std::lock_guard { m_mutex };
+    calc_frame();
     m_front->build_secondary_command_buffer(cb);
   }
 
   [[nodiscard]] auto count() {
-    auto guard = std::lock_guard { m_mutex };
     return m_front->count();
   }
 };

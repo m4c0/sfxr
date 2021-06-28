@@ -5,6 +5,8 @@
 
 */
 
+#include "draw_context.hpp"
+#include "gui.hpp"
 #include "m4c0.hpp"
 #include "m4c0/log.hpp"
 #include "m4c0/native_handles.hpp"
@@ -636,9 +638,6 @@ static void do_bit_change() {
   wav_bits = (wav_bits == 16) ? 8 : 16;
 }
 
-static constexpr const auto bg_color = 0xC0B090;
-static constexpr const auto txt_color = 0x504030;
-static constexpr const auto bar_color = 0x000000;
 void DrawGeneratorButtons() {
   struct button {
     const char * name;
@@ -750,38 +749,17 @@ void DrawSlidersAndWhereabouts() {
   DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
   DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
 }
-void DrawScreen() {
-  if (!should_redraw()) return;
+bool ddkCalcFrame(draw_context * ctx) {
+  if (!should_redraw()) return false;
 
-  ddkLock();
+  gui::screen scr;
+  scr.draw(ctx);
 
-  ClearScreen(bg_color);
   DrawButtonsAndWhereabouts();
   DrawSlidersAndWhereabouts();
 
-  ddkUnlock();
-
   if (!mouse_left) vcurbutton = -1;
-}
 
-bool keydown = false;
-
-bool ddkCalcFrame() {
-  input->Update(); // WIN32 (for keyboard input)
-
-  if (input->KeyPressed(DIK_SPACE) || input->KeyPressed(DIK_RETURN)) // WIN32 (keyboard input only for
-                                                                     // convenience, ok to remove)
-  {
-    if (!keydown) {
-      PlaySample();
-      keydown = true;
-    }
-  } else
-    keydown = false;
-
-  DrawScreen();
-
-  Sleep(5); // WIN32
   return true;
 }
 

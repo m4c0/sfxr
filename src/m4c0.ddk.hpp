@@ -6,8 +6,10 @@
 #include <cstdint>
 #include <functional>
 
+class draw_context;
+
 void ddkInit(const m4c0::native_handles * nh);
-bool ddkCalcFrame();
+bool ddkCalcFrame(draw_context * ctx);
 void ddkFree();
 
 // Stuff that is called from the "sfxr" thread
@@ -22,9 +24,6 @@ extern std::atomic_int mouse_py; // NOLINT
 
 extern std::atomic_bool mouse_left;      // NOLINT
 extern std::atomic_bool mouse_leftclick; // NOLINT
-
-extern std::function<void()> lock;   // NOLINT
-extern std::function<void()> unlock; // NOLINT
 
 extern std::function<void(int, int)> set_screen_size;                   // NOLINT
 extern std::function<void(int, int, int, int, std::uint32_t)> draw_bar; // NOLINT

@@ -42,19 +42,6 @@ static bool FileSelectorSave(unsigned /*x*/, const char * /*name*/, unsigned /*y
   return false;
 }
 
-static void Sleep(unsigned ms) {
-  using namespace std::chrono_literals;
-
-  std::this_thread::sleep_for(1ms * ms);
-}
-
-static void ddkLock() {
-  lock();
-}
-static void ddkUnlock() {
-  unlock();
-}
-
 static void ddkSetMode(
     int width,
     int height,
