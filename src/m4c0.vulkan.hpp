@@ -4,6 +4,7 @@
 #include "m4c0/casein/main.hpp"
 #include "m4c0/fuji/device_context.hpp"
 #include "m4c0/fuji/main_loop.hpp"
+#include "m4c0/native_handles.hpp"
 #include "m4c0/vulkan/bind_pipeline.hpp"
 #include "m4c0/vulkan/bind_vertex_buffer.hpp"
 #include "m4c0/vulkan/buffer.hpp"
@@ -277,8 +278,8 @@ public:
 
 class ddk_guard {
 public:
-  ddk_guard() {
-    ddkInit();
+  explicit ddk_guard(const m4c0::native_handles * np) {
+    ddkInit(np);
   }
   ~ddk_guard() {
     ddkFree();
@@ -302,7 +303,7 @@ public:
       ddkpitch = w;
     };
 
-    ddk_guard ddk;
+    ddk_guard ddk { nh };
     run_device(&ld);
   }
 };

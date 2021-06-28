@@ -6,6 +6,8 @@
 */
 
 #include "m4c0.hpp"
+#include "m4c0/log.hpp"
+#include "m4c0/native_handles.hpp"
 #include "parameters.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
@@ -789,32 +791,18 @@ bool ddkCalcFrame() {
   return true;
 }
 
-void ddkInit() {
-  srand(time(NULL));
+void ddkInit(const m4c0::native_handles * np) {
+  srand(time(nullptr));
 
-  ddkSetMode(640, 480, 32, 60, DDK_WINDOW,
-             "sfxr"); // requests window size etc from ddrawkit
+  ddkSetMode(640, 480, 32, 60, DDK_WINDOW, "sfxr");
 
-  if (LoadTGA(font, "/usr/share/sfxr/font.tga")) {
-    /* Try again in cwd */
-    if (LoadTGA(font, "font.tga")) {
-      fprintf(
-          stderr,
-          "Error could not open /usr/share/sfxr/font.tga"
-          " nor font.tga\n");
-      exit(1);
-    }
+  if (LoadTGA(np, font, "font") < 0) {
+    m4c0::log::error("Error could not open font.tga");
+    std::terminate();
   }
-
-  if (LoadTGA(ld48, "/usr/share/sfxr/ld48.tga")) {
-    /* Try again in cwd */
-    if (LoadTGA(ld48, "ld48.tga")) {
-      fprintf(
-          stderr,
-          "Error could not open /usr/share/sfxr/ld48.tga"
-          " nor ld48.tga\n");
-      exit(1);
-    }
+  if (LoadTGA(np, ld48, "ld48") < 0) {
+    m4c0::log::error("Error could not open ld48.tga");
+    std::terminate();
   }
 
   ld48.width = ld48.pitch;

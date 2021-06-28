@@ -1,13 +1,14 @@
 #pragma once
 
 #include "m4c0.hpp"
+#include "m4c0/assets/simple_asset.hpp"
 
 #include <cstring>
 #include <memory>
 
 static constexpr const auto magic_tga_color = 0x300030;
 
-int LoadTGA(Spriteset & tiles, const char * filename) {
+int LoadTGA(const m4c0::native_handles * np, Spriteset & tiles, const char * filename) {
   static constexpr const auto expected_header_size = 18;
   static constexpr const auto pad_size = 11;
   struct header {
@@ -19,26 +20,26 @@ int LoadTGA(Spriteset & tiles, const char * filename) {
     std::uint8_t img_descr;
   };
   static_assert(sizeof(header) == expected_header_size);
-  // auto res = m4c0::assets::simple_asset::load(np, filename, "jpg");
 
-  std::unique_ptr<FILE, decltype(&fclose)> file { fopen(filename, "rbe"), &fclose };
-  if (!file) return -1;
+  static constexpr const auto expected_pixel_size = 3;
+  struct pixel {
+    std::uint8_t r, g, b;
+  };
+  static_assert(sizeof(pixel) == expected_pixel_size);
 
-  header h {};
-  fread(&h, 1, sizeof(h), file.get());
+  auto res = m4c0::assets::simple_asset::load(np, filename, "tga");
+  auto h = *(res->span<header>().data());
 
   tiles.width = h.height;
   tiles.height = h.height;
   tiles.pitch = h.width;
 
-  fseek(file.get(), h.id_length, SEEK_CUR);
-
+  const auto * data = res->span<pixel>(sizeof(header) + static_cast<std::ptrdiff_t>(h.id_length)).data();
   tiles.data = (DWORD *)malloc(h.width * h.height * sizeof(DWORD));
   for (auto y = h.height - 1; y >= 0; y--) {
     for (auto x = 0; x < h.width; x++) {
-      std::uint32_t r {};
-      fread(&r, 1, 3, file.get());
-      tiles.data[y * h.width + x] = r > 0 ? magic_tga_color : 0;
+      auto r = *data++;
+      tiles.data[y * h.width + x] = r.r > 0 ? magic_tga_color : 0;
     }
   }
 

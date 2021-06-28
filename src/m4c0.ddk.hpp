@@ -1,10 +1,12 @@
 #pragma once
 
+#include "m4c0/native_handles.hpp"
+
 #include <atomic>
 #include <cstdint>
 #include <functional>
 
-void ddkInit();
+void ddkInit(const m4c0::native_handles * nh);
 bool ddkCalcFrame();
 void ddkFree();
 
