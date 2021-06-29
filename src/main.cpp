@@ -32,8 +32,6 @@ float frnd(float range) {
 }
 
 parameters p;
-sprite_set font;
-sprite_set ld48;
 
 int wave_type;
 
@@ -325,95 +323,7 @@ bool ExportWAV(char * filename) {
   return true;
 }
 
-#include "tools.h"
-
-void Slider(int x, int y, float & value, bool bipolar, const char * text, bool enabled = true) {
-  bool hover = false;
-  if (MouseInBox(x, y, 100, 10)) {
-    if (mouse_leftclick) vselected = &value;
-    if (mouse_rightclick) value = 0.0f;
-    hover = true;
-  }
-  auto mv = static_cast<float>(mouse_x - mouse_px);
-  if (vselected != &value) mv = 0.0f;
-  if (bipolar) {
-    value = sound::norm(value + mv * 0.005f);
-  } else {
-    value = sound::norm(value + mv * 0.0025f, 0.0F, 1.0F);
-  }
-  DrawBar(x - 1, y, 102, 10, 0x000000);
-  int ival = (int)(value * 99);
-  if (bipolar) ival = (int)(value * 49.5f + 49.5f);
-  DrawBar(x, y + 1, ival, 8, hover ? 0xFFFFFF : 0xF0C090);
-  DrawBar(x + ival, y + 1, 100 - ival, 8, hover ? 0x000000 : 0x807060);
-  DrawBar(x + ival, y + 1, 1, 8, 0xFFFFFF);
-  if (bipolar) {
-    DrawBar(x + 50, y - 1, 1, 3, 0x000000);
-    DrawBar(x + 50, y + 8, 1, 3, 0x000000);
-  }
-  DWORD tcol = enabled ? 0x000000 : 0x808080;
-  DrawText(x - 4 - strlen(text) * 8, y + 1, tcol, text);
-}
-
-bool Button(int x, int y, bool highlight, const char * text, int id) {
-  DWORD color1 = 0x000000;
-  DWORD color2 = 0xA09088;
-  DWORD color3 = 0x000000;
-  bool hover = MouseInBox(x, y, 100, 17);
-  if (hover && mouse_leftclick) vcurbutton = id;
-  bool current = (vcurbutton == id);
-  if (highlight) {
-    color1 = 0x000000;
-    color2 = 0x988070;
-    color3 = 0xFFF0E0;
-  }
-  if (current && hover) {
-    color1 = 0xA09088;
-    color2 = 0xFFF0E0;
-    color3 = 0xA09088;
-  } else if (hover) {
-    color1 = 0x000000;
-    color2 = 0x000000;
-    color3 = 0xA09088;
-  }
-  DrawBar(x - 1, y - 1, 102, 19, color1);
-  DrawBar(x, y, 100, 17, color2);
-  DrawText(x + 5, y + 5, color3, text);
-  return current && hover && !mouse_left;
-}
-
-static bool should_redraw() {
-  static int drawcount = 0;
-  static bool firstframe = true;
-  static int refresh_counter = 0;
-
-  bool redraw = true;
-  if (!firstframe && mouse_x - mouse_px == 0 && mouse_y - mouse_py == 0 && !mouse_left && !mouse_right) redraw = false;
-  if (!mouse_left) {
-    if (vselected != nullptr || vcurbutton > -1) {
-      redraw = true;
-      refresh_counter = 2;
-    }
-    vselected = nullptr;
-  }
-  if (refresh_counter > 0) {
-    refresh_counter--;
-    redraw = true;
-  }
-
-  if (playing_sample) redraw = true;
-
-  constexpr auto frames_between_refreshes = 20;
-  if (drawcount++ > frames_between_refreshes) {
-    redraw = true;
-    drawcount = 0;
-  }
-
-  firstframe = false;
-  return redraw;
-}
-
-static void do_pickup_coin() {
+void do_pickup_coin() {
   ResetParams();
   p.m_base_freq = 0.4f + frnd(0.5f);
   p.m_env_attack = 0.0f;
@@ -424,6 +334,7 @@ static void do_pickup_coin() {
     p.m_arp_speed = 0.5f + frnd(0.2f);
     p.m_arp_mod = 0.2f + frnd(0.4f);
   }
+  PlaySample();
 }
 static void do_laser_shoot() {
   ResetParams();
@@ -454,6 +365,7 @@ static void do_laser_shoot() {
     p.m_pha_ramp = -frnd(0.2f);
   }
   if (rnd(1)) p.m_hpf_freq = frnd(0.3f);
+  PlaySample();
 }
 static void do_explosion() {
   ResetParams();
@@ -484,6 +396,7 @@ static void do_explosion() {
     p.m_arp_speed = 0.6f + frnd(0.3f);
     p.m_arp_mod = 0.8f - frnd(1.6f);
   }
+  PlaySample();
 }
 static void do_powerup() {
   ResetParams();
@@ -506,6 +419,7 @@ static void do_powerup() {
   p.m_env_attack = 0.0f;
   p.m_env_sustain = frnd(0.4f);
   p.m_env_decay = 0.1f + frnd(0.4f);
+  PlaySample();
 }
 static void do_hit_hurt() {
   ResetParams();
@@ -518,6 +432,7 @@ static void do_hit_hurt() {
   p.m_env_sustain = frnd(0.1f);
   p.m_env_decay = 0.1f + frnd(0.2f);
   if (rnd(1)) p.m_hpf_freq = frnd(0.3f);
+  PlaySample();
 }
 static void do_jump() {
   ResetParams();
@@ -530,6 +445,7 @@ static void do_jump() {
   p.m_env_decay = 0.1f + frnd(0.2f);
   if (rnd(1)) p.m_hpf_freq = frnd(0.3f);
   if (rnd(1)) p.m_lpf_freq = 1.0f - frnd(0.6f);
+  PlaySample();
 }
 static void do_blip_select() {
   ResetParams();
@@ -540,6 +456,7 @@ static void do_blip_select() {
   p.m_env_sustain = 0.1f + frnd(0.1f);
   p.m_env_decay = frnd(0.2f);
   p.m_hpf_freq = 0.1f;
+  PlaySample();
 }
 
 static void do_randomize() {
@@ -638,138 +555,140 @@ static void do_bit_change() {
   wav_bits = (wav_bits == 16) ? 8 : 16;
 }
 
-void DrawGeneratorButtons() {
-  struct button {
-    const char * name;
-    void (*callback)();
-  };
-  constexpr const auto categories = std::array {
-    button { "PICKUP/COIN", do_pickup_coin }, button { "LASER/SHOOT", do_laser_shoot },
-    button { "EXPLOSION", do_explosion },     button { "POWERUP", do_powerup },
-    button { "HIT/HURT", do_hit_hurt },       button { "JUMP", do_jump },
-    button { "BLIP/SELECT", do_blip_select },
-  };
-
-  int i = 0;
-  for (const auto & cat : categories) {
-    if (Button(5, 35 + i * 30, false, cat.name, 300 + i)) {
-      cat.callback();
-      PlaySample();
-    }
-    i++;
+class labeled_slider : public gui::hbox {
+public:
+  labeled_slider(unsigned id, const char * label, float * value, float min, float max) : hbox() {
+    make_child<gui::label>(label);
+    make_child<gui::slider>(id, value, min, max);
   }
-}
-void DrawButtonsAndWhereabouts() {
-  DrawText(10, 10, txt_color, "GENERATOR");
-  DrawGeneratorButtons();
+};
+class screen {
+  static void create_left_menu(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::vbox>();
+    res->make_child<gui::label>("GENERATOR");
+    res->make_child<gui::button>(++id, "PICKUP/COIN", do_pickup_coin);
+    res->make_child<gui::button>(++id, "LASER/SHOOT", do_laser_shoot);
+    res->make_child<gui::button>(++id, "EXPLOSION", do_explosion);
+    res->make_child<gui::button>(++id, "POWERUP", do_powerup);
+    res->make_child<gui::button>(++id, "HIT/HURT", do_hit_hurt);
+    res->make_child<gui::button>(++id, "JUMP", do_jump);
+    res->make_child<gui::button>(++id, "BLIP/SELECT", do_blip_select);
+    res->make_child<gui::button>(++id, "MUTATE", do_mutate);
+    res->make_child<gui::button>(++id, "RANDOMIZE", do_randomize);
+  }
 
-  DrawBar(110, 0, 2, 480, bar_color);
-  DrawText(120, 10, txt_color, "MANUAL SETTINGS");
-  ld48.draw(8, 440, 0, 0xB0A080);
+  template<auto N>
+  static void do_set_wave() {
+    wave_type = N;
+  }
+  static void create_wave_btns(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::hbox>();
+    res->make_child<gui::button>(++id, "SQUAREWAVE", do_set_wave<0>, wave_type == 0);
+    res->make_child<gui::button>(++id, "SAWTOOTH", do_set_wave<1>, wave_type == 1);
+    res->make_child<gui::button>(++id, "SINEWAVE", do_set_wave<2>, wave_type == 2);
+    res->make_child<gui::button>(++id, "NOISE", do_set_wave<3>, wave_type == 3);
+  }
 
-  if (Button(130, 30, wave_type == 0, "SQUAREWAVE", 10)) wave_type = 0;
-  if (Button(250, 30, wave_type == 1, "SAWTOOTH", 11)) wave_type = 1;
-  if (Button(370, 30, wave_type == 2, "SINEWAVE", 12)) wave_type = 2;
-  if (Button(490, 30, wave_type == 3, "NOISE", 13)) wave_type = 3;
+  static void create_sliders(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::vbox>();
+    res->make_child<labeled_slider>(++id, "ATTACK TIME", &p.m_env_attack, 0, 1);
+    res->make_child<labeled_slider>(++id, "SUSTAIN TIME", &p.m_env_sustain, 0, 1);
+    res->make_child<labeled_slider>(++id, "SUSTAIN PUNCH", &p.m_env_punch, 0, 1);
+    res->make_child<labeled_slider>(++id, "DECAY TIME", &p.m_env_decay, 0, 1);
 
-  DrawBar(5 - 1 - 1, 412 - 1 - 1, 102 + 2, 19 + 2, bar_color);
-  if (Button(5, 412, false, "RANDOMIZE", 40)) do_randomize();
+    res->make_child<labeled_slider>(++id, "START FREQUENCY", &p.m_base_freq, 0, 1);
+    res->make_child<labeled_slider>(++id, "MIN FREQUENCY", &p.m_freq_limit, 0, 1);
+    res->make_child<labeled_slider>(++id, "SLIDE", &p.m_freq_ramp, -1, 1);
+    res->make_child<labeled_slider>(++id, "DELTA SLIDE", &p.m_freq_dramp, -1, 1);
 
-  if (Button(5, 382, false, "MUTATE", 30)) do_mutate();
+    res->make_child<labeled_slider>(++id, "VIBRATO DEPTH", &p.m_vib_strength, 0, 1);
+    res->make_child<labeled_slider>(++id, "VIBRATO SPEED", &p.m_vib_speed, 0, 1);
 
-  DrawText(515, 170, 0x000000, "VOLUME");
-  DrawBar(490 - 1 - 1 + 60, 180 - 1 + 5, 70, 2, bar_color);
-  DrawBar(490 - 1 - 1 + 60 + 68, 180 - 1 + 5, 2, 205, bar_color);
-  DrawBar(490 - 1 - 1 + 60, 180 - 1, 42 + 2, 10 + 2, 0xFF0000);
-  Slider(490, 180, sound_vol, false, " ");
-  if (Button(490, 200, false, "PLAY SOUND", 20)) PlaySample();
+    res->make_child<labeled_slider>(++id, "CHANGE AMOUNT", &p.m_arp_mod, -1, 1);
+    res->make_child<labeled_slider>(++id, "CHANGE SPEED", &p.m_arp_speed, 0, 1);
 
-  if (Button(490, 290, false, "LOAD SOUND", 14)) do_load_sound();
-  if (Button(490, 320, false, "SAVE SOUND", 15)) do_save_sound();
+    res->make_child<labeled_slider>(++id, "SQUARE DUTY", &p.m_duty, 0, 1);
+    res->make_child<labeled_slider>(++id, "DUTY SWEEP", &p.m_duty_ramp, -1, 1);
 
-  DrawBar(490 - 1 - 1 + 60, 380 - 1 + 9, 70, 2, bar_color);
-  DrawBar(490 - 1 - 2, 380 - 1 - 2, 102 + 4, 19 + 4, bar_color);
-  if (Button(490, 380, false, "EXPORT .WAV", 16)) do_export();
-  char str[10];
-  sprintf(str, "%i HZ", wav_freq);
-  if (Button(490, 410, false, str, 18)) do_freq_change();
-  sprintf(str, "%i-BIT", wav_bits);
-  if (Button(490, 440, false, str, 19)) do_bit_change();
-}
-void DrawSlidersAndWhereabouts() {
-  int xpos = 350;
-  int ypos = 4;
+    res->make_child<labeled_slider>(++id, "REPEAT SPEED", &p.m_repeat_speed, 0, 1);
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+    res->make_child<labeled_slider>(++id, "PHASER OFFSET", &p.m_pha_offset, -1, 1);
+    res->make_child<labeled_slider>(++id, "PHASER SWEEP", &p.m_pha_ramp, -1, 1);
 
-  Slider(xpos, (ypos++) * 18, p.m_env_attack, false, "ATTACK TIME");
-  Slider(xpos, (ypos++) * 18, p.m_env_sustain, false, "SUSTAIN TIME");
-  Slider(xpos, (ypos++) * 18, p.m_env_punch, false, "SUSTAIN PUNCH");
-  Slider(xpos, (ypos++) * 18, p.m_env_decay, false, "DECAY TIME");
+    res->make_child<labeled_slider>(++id, "LP FILTER CUTOFF", &p.m_lpf_freq, 0, 1);
+    res->make_child<labeled_slider>(++id, "LP FILTER CUTOFF SWEEP", &p.m_lpf_ramp, -1, 1);
+    res->make_child<labeled_slider>(++id, "LP FILTER RESONANCE", &p.m_lpf_resonance, 0, 1);
+    res->make_child<labeled_slider>(++id, "HP FILTER CUTOFF", &p.m_hpf_freq, 0, 1);
+    res->make_child<labeled_slider>(++id, "HP FILTER SWEEP", &p.m_hpf_ramp, -1, 1);
+  }
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+  static void create_br_stuff(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::vbox>();
+    res->make_child<gui::label>("VOLUME");
+    res->make_child<gui::slider>(++id, &sound_vol, 0, 1);
+    res->make_child<gui::button>(++id, "PLAY SOUND", PlaySample);
+    res->make_child<gui::button>(++id, "LOAD SOUND", do_load_sound);
+    res->make_child<gui::button>(++id, "SAVE SOUND", do_save_sound);
+    res->make_child<gui::button>(++id, "EXPORT .WAV", do_export);
 
-  Slider(xpos, (ypos++) * 18, p.m_base_freq, false, "START FREQUENCY");
-  Slider(xpos, (ypos++) * 18, p.m_freq_limit, false, "MIN FREQUENCY");
-  Slider(xpos, (ypos++) * 18, p.m_freq_ramp, true, "SLIDE");
-  Slider(xpos, (ypos++) * 18, p.m_freq_dramp, true, "DELTA SLIDE");
+    static constexpr const auto str_max_len = 10;
+    static std::array<char, str_max_len> wav_freq_str;
+    sprintf(wav_freq_str.data(), "%i HZ", wav_freq); // NOLINT
+    res->make_child<gui::button>(++id, wav_freq_str.data(), do_freq_change);
 
-  Slider(xpos, (ypos++) * 18, p.m_vib_strength, false, "VIBRATO DEPTH");
-  Slider(xpos, (ypos++) * 18, p.m_vib_speed, false, "VIBRATO SPEED");
+    static std::array<char, str_max_len> wav_bits_str;
+    sprintf(wav_bits_str.data(), "%i-BIT", wav_bits); // NOLINT
+    res->make_child<gui::button>(++id, wav_bits_str.data(), do_bit_change);
+  }
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+  static void create_bottom_stuff(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::hbox>();
+    create_sliders(id, res);
+    create_br_stuff(id, res);
+  }
 
-  Slider(xpos, (ypos++) * 18, p.m_arp_mod, true, "CHANGE AMOUNT");
-  Slider(xpos, (ypos++) * 18, p.m_arp_speed, false, "CHANGE SPEED");
+  static void create_right_stuff(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::vbox>();
+    res->make_child<gui::label>("MANUAL SETTINGS");
+    create_wave_btns(id, res);
+    create_bottom_stuff(id, res);
+  }
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+  static void create_stuff(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::hbox>();
+    create_left_menu(id, res);
+    create_right_stuff(id, res);
+  }
 
-  Slider(xpos, (ypos++) * 18, p.m_duty, false, "SQUARE DUTY", wave_type == 0);
-  Slider(xpos, (ypos++) * 18, p.m_duty_ramp, true, "DUTY SWEEP", wave_type == 0);
+  static gui::stack_box create_stack(unsigned & id) {
+    gui::stack_box res;
+    res.make_child<gui::panel>(bg_color);
+    create_stuff(id, &res);
+    return res;
+  }
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+  unsigned id = 0;
+  const gui::stack_box stack = create_stack(id);
 
-  Slider(xpos, (ypos++) * 18, p.m_repeat_speed, false, "REPEAT SPEED");
+public:
+  void draw(gui::draw_context * ctx) const {
+    constexpr const gui::rect full_scr { 0, 0, { 640, 480 } };
+    stack.draw(ctx, full_scr);
 
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
+    if (!ctx->mouse()->is_left_down()) ctx->mouse()->holder() = 0;
+  }
+};
 
-  Slider(xpos, (ypos++) * 18, p.m_pha_offset, true, "PHASER OFFSET");
-  Slider(xpos, (ypos++) * 18, p.m_pha_ramp, true, "PHASER SWEEP");
-
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
-
-  Slider(xpos, (ypos++) * 18, p.m_lpf_freq, false, "LP FILTER CUTOFF");
-  Slider(xpos, (ypos++) * 18, p.m_lpf_ramp, true, "LP FILTER CUTOFF SWEEP");
-  Slider(xpos, (ypos++) * 18, p.m_lpf_resonance, false, "LP FILTER RESONANCE");
-  Slider(xpos, (ypos++) * 18, p.m_hpf_freq, false, "HP FILTER CUTOFF");
-  Slider(xpos, (ypos++) * 18, p.m_hpf_ramp, true, "HP FILTER CUTOFF SWEEP");
-
-  DrawBar(xpos - 190, ypos * 18 - 5, 300, 2, bar_color);
-
-  DrawBar(xpos - 190, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
-  DrawBar(xpos - 190 + 299, 4 * 18 - 5, 1, (ypos - 4) * 18, bar_color);
-}
-bool ddkCalcFrame(draw_context * ctx) {
-  if (!should_redraw()) return false;
-
-  gui::screen scr;
+bool ddkCalcFrame(gui::draw_context * ctx) {
+  screen scr;
   scr.draw(ctx);
-
-  DrawButtonsAndWhereabouts();
-  DrawSlidersAndWhereabouts();
-
-  if (!mouse_left) vcurbutton = -1;
-
   return true;
 }
 
-void ddkInit(const m4c0::native_handles * np) {
+void ddkInit(const m4c0::native_handles * nh) {
   srand(time(nullptr));
 
   ddkSetMode(640, 480, 32, 60, DDK_WINDOW, "sfxr");
-
-  font = sprite_set::load(np, "font", true);
-  ld48 = sprite_set::load(np, "ld48", false);
 
   input = new DPInput(hWndMain, hInstanceMain); // WIN32
 

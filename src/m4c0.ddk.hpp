@@ -6,10 +6,12 @@
 #include <cstdint>
 #include <functional>
 
-class draw_context;
+namespace gui {
+  class draw_context;
+}
 
 void ddkInit(const m4c0::native_handles * nh);
-bool ddkCalcFrame(draw_context * ctx);
+bool ddkCalcFrame(gui::draw_context * ctx);
 void ddkFree();
 
 // Stuff that is called from the "sfxr" thread

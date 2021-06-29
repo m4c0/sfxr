@@ -18,6 +18,7 @@
 #include "m4c0/vulkan/pipeline_layout.hpp"
 #include "m4c0/vulkan/push_constants.hpp"
 #include "m4c0/vulkan/shader_module.hpp"
+#include "mouse.hpp"
 
 #include <array>
 #include <cstdint>
@@ -25,6 +26,12 @@
 #include <mutex>
 #include <span>
 #include <thread>
+
+struct scr_context {
+  const m4c0::native_handles * nh;
+  const m4c0::fuji::device_context * ld;
+  unsigned w, h;
+};
 
 template<class DataTp>
 static auto shader(DataTp && data, unsigned size) {
@@ -88,10 +95,10 @@ class color_mem {
   bind m_bind;
 
 public:
-  color_mem(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
-    : m_count(w * h)
+  explicit color_mem(const scr_context * ctx)
+    : m_count(ctx->w * ctx->h)
     , m_buffer(buffer::create_vertex_buffer_with_size(m_count * sizeof(instance)))
-    , m_memory(ld->create_host_memory(&m_buffer))
+    , m_memory(ctx->ld->create_host_memory(&m_buffer))
     , m_bind(&m_buffer, &m_memory) {
   }
   void build_secondary_command_buffer(VkCommandBuffer cb) const {
@@ -122,7 +129,7 @@ class pipeline {
   } m_consts {};
 
 public:
-  explicit pipeline(const m4c0::fuji::device_context * ld, unsigned w, unsigned h);
+  explicit pipeline(const scr_context * ctx);
 
   void build_secondary_command_buffer(VkCommandBuffer cb) {
     m4c0::vulkan::cmd::bind_pipeline(cb).with_pipeline(&m_pipeline).now();
@@ -133,9 +140,11 @@ public:
   }
 };
 
-class pixel_guard : public draw_context {
+class pixel_guard : public gui::draw_context {
   decltype(m4c0::vulkan::device_memory().map_all()) m_guard;
+  sprite_set * m_font;
   instance * m_ptr;
+  gui::mouse * m_mouse;
   int m_pos = 0;
 
   static constexpr const auto conv = [](auto i) {
@@ -146,33 +155,62 @@ class pixel_guard : public draw_context {
     m_ptr[m_pos++] = instance { sx, sy, w, h, color };
   }
 
+protected:
+  [[nodiscard]] sprite_set * font() override {
+    return m_font;
+  }
+
 public:
-  explicit pixel_guard(m4c0::vulkan::device_memory * mem)
+  pixel_guard(m4c0::vulkan::device_memory * mem, sprite_set * font, gui::mouse * mouse)
     : m_guard(mem->map_all())
-    , m_ptr(m_guard.pointer<instance>()) {
+    , m_ptr(m_guard.pointer<instance>())
+    , m_font(font)
+    , m_mouse(mouse) {
     draw_bar = [this](int sx, int sy, int w, int h, std::uint32_t color) {
-      panel(sx, sy, w, h, color);
+      panel({ { sx, sy }, { w, h } }, color);
     };
   }
 
-  void panel(int sx, int sy, int w, int h, std::uint32_t color) override {
-    draw(conv(sx), conv(sy), conv(w), conv(h), color);
+  void panel(const gui::rect & r, std::uint32_t color) override {
+    draw(conv(r.origin.x), conv(r.origin.y), conv(r.size.w), conv(r.size.h), color);
+  }
+
+  gui::mouse * mouse() override {
+    return m_mouse;
   }
 };
 
+class my_mouse : public gui::mouse {
+public:
+  bool is_left_down() override {
+    return mouse_left;
+  }
+  bool is_left_down_edge() override {
+    return mouse_leftclick;
+  }
+  gui::point delta() override {
+    return { mouse_x - mouse_px, mouse_y - mouse_py };
+  }
+  gui::point position() override {
+    return { mouse_x, mouse_y };
+  }
+};
 class dbl_buf {
   std::array<color_mem, 2> m_clr_mem;
   color_mem * m_front = &m_clr_mem.at(0);
   color_mem * m_back = &m_clr_mem.at(1);
+  sprite_set m_font;
+  my_mouse m_mouse;
 
   void calc_frame() {
-    pixel_guard pg { m_back->device_memory() };
+    pixel_guard pg { m_back->device_memory(), &m_font, &m_mouse };
     if (ddkCalcFrame(&pg)) std::swap(m_front, m_back);
   }
 
 public:
-  dbl_buf(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
-    : m_clr_mem({ color_mem { ld, w, h }, color_mem { ld, w, h } }) {
+  explicit dbl_buf(const scr_context * ctx)
+    : m_clr_mem({ color_mem { ctx }, color_mem { ctx } })
+    , m_font(sprite_set::load(ctx->nh, "font", true)) {
   }
 
   void build_secondary_command_buffer(VkCommandBuffer cb) {
@@ -192,11 +230,7 @@ class objects : public m4c0::fuji::main_loop_listener {
   dbl_buf m_dbl_buf;
 
 public:
-  objects(const m4c0::fuji::device_context * ld, std::uint16_t w, std::uint16_t h)
-    : m_viewport()
-    , m_pipeline(ld, w, h)
-    , m_vtx_mem(ld)
-    , m_dbl_buf(ld, w, h) {
+  explicit objects(const scr_context * ctx) : m_viewport(), m_pipeline(ctx), m_vtx_mem(ctx->ld), m_dbl_buf(ctx) {
   }
   void build_primary_command_buffer(VkCommandBuffer cb) override {
   }
@@ -264,10 +298,10 @@ public:
     m_render_extent = e;
   }
 
-  void reset(const m4c0::fuji::device_context * ld, unsigned w, unsigned h) {
+  void reset(const scr_context * ctx) {
     auto guard = std::lock_guard { m_obj_mutex };
-    m_obj = std::make_unique<objects>(ld, w, h);
-    m_ddk_extent = m4c0::vulkan::extent_2d { w, h };
+    m_obj = std::make_unique<objects>(ctx);
+    m_ddk_extent = m4c0::vulkan::extent_2d { ctx->w, ctx->h };
   }
   void update_mouse() const {
     m_ns->update_mouse(m_ddk_extent);
@@ -296,8 +330,9 @@ public:
     stuff s { ns };
     listener() = &s;
 
-    set_screen_size = [this, s = &s, ld = &ld](int w, int h) {
-      s->reset(ld, w, h);
+    set_screen_size = [nh, s = &s, ld = &ld](int w, int h) {
+      scr_context ctx { nh, ld, static_cast<unsigned int>(w), static_cast<unsigned int>(h) };
+      s->reset(&ctx);
       ddkpitch = w;
     };
 

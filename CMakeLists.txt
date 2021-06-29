@@ -13,6 +13,7 @@ add_executable(sfxr WIN32 MACOSX_BUNDLE
   src/m4c0.cpp
   src/m4c0.ddk.cpp
   src/main.cpp
+  src/sprite_set.cpp
   )
 target_compile_definitions(sfxr PRIVATE M4C0)
 target_link_libraries(sfxr PRIVATE
