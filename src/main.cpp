@@ -554,6 +554,10 @@ static void do_freq_change() {
 static void do_bit_change() {
   wav_bits = (wav_bits == 16) ? 8 : 16;
 }
+template<auto N>
+static void do_set_wave() {
+  wave_type = N;
+}
 
 class labeled_slider : public gui::hbox {
 public:
@@ -577,10 +581,6 @@ class screen {
     res->make_child<gui::button>(++id, "RANDOMIZE", do_randomize);
   }
 
-  template<auto N>
-  static void do_set_wave() {
-    wave_type = N;
-  }
   static void create_wave_btns(unsigned & id, gui::box * parent) {
     auto * res = parent->make_child<gui::hbox>();
     res->make_child<gui::button>(++id, "SQUAREWAVE", do_set_wave<0>, wave_type == 0);

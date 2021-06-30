@@ -172,6 +172,8 @@ namespace gui {
 
   class hbox : public box, public widget {
   public:
+    using box::box;
+
     void draw(draw_context * ctx, const rect & r) const override {
       auto p = r.origin;
       for (const auto & c : children()) {
@@ -192,6 +194,8 @@ namespace gui {
 
   class vbox : public box, public widget {
   public:
+    using box::box;
+
     void draw(draw_context * ctx, const rect & r) const override {
       auto p = r.origin;
       for (const auto & c : children()) {
@@ -212,6 +216,8 @@ namespace gui {
 
   class stack_box : public box, public widget {
   public:
+    using box::box;
+
     void draw(draw_context * ctx, const rect & r) const override {
       for (const auto & c : children()) {
         c->draw(ctx, r);
