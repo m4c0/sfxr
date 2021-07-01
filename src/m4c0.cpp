@@ -1,5 +1,8 @@
 #include "m4c0.vulkan.hpp"
+#include "m4c0/casein/fuji.hpp"
 #include "m4c0/fuji/main_loop_thread.hpp"
+
+#include <memory>
 
 extern "C" {
 #include "main.frag.h"
@@ -25,22 +28,5 @@ pipeline::pipeline(const scr_context * ctx)
 }
 
 std::unique_ptr<m4c0::casein::handler> m4c0::casein::main(const m4c0::native_handles * nh) {
-  class my_handler : public handler {
-    m4c0::fuji::main_loop_thread<loop> m_stuff {};
-    const m4c0::native_handles * m_nh;
-
-  public:
-    explicit my_handler(const m4c0::native_handles * nh) : m_nh(nh) {
-      m_stuff.start(nh);
-    }
-    ~my_handler() override {
-      m_stuff.interrupt();
-    }
-
-    my_handler(my_handler &&) = delete;
-    my_handler(const my_handler &) = delete;
-    my_handler & operator=(my_handler &&) = delete;
-    my_handler & operator=(const my_handler &) = delete;
-  };
-  return std::make_unique<my_handler>(nh);
+  return std::make_unique<m4c0::casein::fuji_handler<loop>>(nh);
 }
