@@ -177,7 +177,11 @@ namespace gui {
     }
   };
 
-  class hbox : public box, public widget {
+  template<int point::*P, int size::*S>
+  class cardinal_box : public box, public widget {
+  protected:
+    [[nodiscard]] virtual size accumulate(size a, size b) const = 0;
+
   public:
     using box::box;
 
@@ -186,39 +190,29 @@ namespace gui {
       for (const auto & c : children()) {
         auto ms = c->min_size();
         c->draw(ctx, rect { p, ms });
-        p.x += ms.w + margin();
+        p.*P += ms.*S + margin();
       }
     }
 
     [[nodiscard]] size min_size() const override {
-      const size init { static_cast<int>(children().size()) * margin(), 0 };
-      return std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
-        auto ms = w->min_size();
-        return size { res.w + ms.w, std::max(res.h, ms.h) };
+      size init {};
+      init.*S = static_cast<int>(children().size()) * margin();
+      return std::accumulate(children().begin(), children().end(), init, [this](auto res, auto & w) {
+        return accumulate(res, w->min_size());
       });
     }
   };
-
-  class vbox : public box, public widget {
-  public:
-    using box::box;
-
-    void draw(draw_context * ctx, const rect & r) const override {
-      auto p = r.origin;
-      for (const auto & c : children()) {
-        auto ms = c->min_size();
-        c->draw(ctx, rect { p, ms });
-        p.y += ms.h + margin();
-      }
-    }
-
-    [[nodiscard]] size min_size() const override {
-      const size init { 0, static_cast<int>(children().size()) * margin() };
-      return std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
-        auto ms = w->min_size();
-        return size { std::max(res.w, ms.w), res.h + ms.h };
-      });
-    }
+  class hbox : public cardinal_box<&point::x, &size::w> {
+  protected:
+    [[nodiscard]] size accumulate(size a, size b) const override {
+      return size { a.w + b.w, std::max(a.h, b.h) };
+    };
+  };
+  class vbox : public cardinal_box<&point::y, &size::h> {
+  protected:
+    [[nodiscard]] size accumulate(size a, size b) const override {
+      return size { std::max(a.w, b.w), a.h + b.h };
+    };
   };
 
   class stack_box : public box, public widget {
