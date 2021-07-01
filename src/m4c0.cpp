@@ -31,7 +31,7 @@ std::unique_ptr<m4c0::casein::handler> m4c0::casein::main(const m4c0::native_han
 
   public:
     explicit my_handler(const m4c0::native_handles * nh) : m_nh(nh) {
-      m_stuff.start(nh, natives_ptr);
+      m_stuff.start(nh);
     }
     ~my_handler() override {
       m_stuff.interrupt();

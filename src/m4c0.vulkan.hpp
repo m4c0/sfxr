@@ -323,11 +323,12 @@ public:
   ddk_guard & operator=(ddk_guard && o) = delete;
 };
 
+extern const native_stuff * const natives_ptr;
 class loop : public m4c0::fuji::main_loop {
 public:
-  void run_global(const m4c0::native_handles * nh, const native_stuff * ns) {
+  void run_global(const m4c0::native_handles * nh) {
     m4c0::fuji::device_context ld { "SFXR", nh };
-    stuff s { ns };
+    stuff s { natives_ptr };
     listener() = &s;
 
     set_screen_size = [nh, s = &s, ld = &ld](int w, int h) {
@@ -340,5 +341,3 @@ public:
     run_device(&ld);
   }
 };
-
-extern const native_stuff * const natives_ptr;
