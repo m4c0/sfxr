@@ -561,7 +561,7 @@ static void do_set_wave() {
 
 class labeled_slider : public gui::hbox {
 public:
-  labeled_slider(unsigned id, const char * label, float * value, float min, float max) : hbox() {
+  labeled_slider(unsigned id, const char * label, float * value, float min, float max) : hbox(true) {
     make_child<gui::label>(label);
     make_child<gui::slider>(id, value, min, max);
   }
@@ -642,7 +642,7 @@ class screen {
   }
 
   static void create_bottom_stuff(unsigned & id, gui::box * parent) {
-    auto * res = parent->make_child<gui::hbox>();
+    auto * res = parent->make_child<gui::hbox>(true);
     create_sliders(id, res);
     create_br_stuff(id, res);
   }

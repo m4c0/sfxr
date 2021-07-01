@@ -179,24 +179,29 @@ namespace gui {
 
   template<int point::*P, int size::*S>
   class cardinal_box : public box, public widget {
+    bool m_justify;
+
   protected:
     [[nodiscard]] virtual size accumulate(size a, size b) const = 0;
 
   public:
-    using box::box;
+    explicit cardinal_box(bool justify = false) : box(), m_justify(justify) {
+    }
 
     void draw(draw_context * ctx, const rect & r) const override {
-      auto p = r.origin;
+      auto rc = r;
+      auto m = m_justify ? (r.size.*S - min_size().*S) / (children().size() - 1) : 0;
       for (const auto & c : children()) {
         auto ms = c->min_size();
-        c->draw(ctx, rect { p, ms });
-        p.*P += ms.*S + margin();
+        rc.size.*S = ms.*S;
+        c->draw(ctx, rc);
+        rc.origin.*P += ms.*S + m + margin();
       }
     }
 
     [[nodiscard]] size min_size() const override {
       size init {};
-      init.*S = static_cast<int>(children().size()) * margin();
+      init.*S = static_cast<int>(children().size() - 1) * margin();
       return std::accumulate(children().begin(), children().end(), init, [this](auto res, auto & w) {
         return accumulate(res, w->min_size());
       });
@@ -207,12 +212,18 @@ namespace gui {
     [[nodiscard]] size accumulate(size a, size b) const override {
       return size { a.w + b.w, std::max(a.h, b.h) };
     };
+
+  public:
+    using cardinal_box::cardinal_box;
   };
   class vbox : public cardinal_box<&point::y, &size::h> {
   protected:
     [[nodiscard]] size accumulate(size a, size b) const override {
       return size { std::max(a.w, b.w), a.h + b.h };
     };
+
+  public:
+    using cardinal_box::cardinal_box;
   };
 
   class stack_box : public box, public widget {
