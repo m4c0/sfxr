@@ -660,10 +660,15 @@ class screen {
     create_right_stuff(id, res);
   }
 
+  static void create_inside_margin(unsigned & id, gui::box * parent) {
+    auto * res = parent->make_child<gui::stack_box>();
+    create_stuff(id, res);
+  }
+
   static gui::stack_box create_stack(unsigned & id) {
-    gui::stack_box res;
+    gui::stack_box res { 0 };
     res.make_child<gui::panel>(bg_color);
-    create_stuff(id, &res);
+    create_inside_margin(id, &res);
     return res;
   }
 

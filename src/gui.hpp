@@ -154,13 +154,20 @@ namespace gui {
 
   class box {
     std::vector<std::unique_ptr<widget>> m_children;
+    int m_margin = 4;
 
   protected:
     [[nodiscard]] constexpr const auto & children() const noexcept {
       return m_children;
     }
+    [[nodiscard]] constexpr auto margin() const noexcept {
+      return m_margin;
+    }
 
   public:
+    explicit box(int margin = 4) : m_margin(margin) {
+    }
+
     template<class Tp, class... Args>
     auto make_child(Args &&... args) -> std::enable_if_t<std::is_base_of_v<widget, Tp>, Tp *> {
       auto up = std::make_unique<Tp>(std::forward<Args>(args)...);
@@ -179,12 +186,12 @@ namespace gui {
       for (const auto & c : children()) {
         auto ms = c->min_size();
         c->draw(ctx, rect { p, ms });
-        p.x += ms.w;
+        p.x += ms.w + margin();
       }
     }
 
     [[nodiscard]] size min_size() const override {
-      constexpr const size init { 0, 0 };
+      const size init { static_cast<int>(children().size()) * margin(), 0 };
       return std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
         auto ms = w->min_size();
         return size { res.w + ms.w, std::max(res.h, ms.h) };
@@ -201,12 +208,12 @@ namespace gui {
       for (const auto & c : children()) {
         auto ms = c->min_size();
         c->draw(ctx, rect { p, ms });
-        p.y += ms.h;
+        p.y += ms.h + margin();
       }
     }
 
     [[nodiscard]] size min_size() const override {
-      constexpr const size init { 0, 0 };
+      const size init { 0, static_cast<int>(children().size()) * margin() };
       return std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
         auto ms = w->min_size();
         return size { std::max(res.w, ms.w), res.h + ms.h };
@@ -219,17 +226,19 @@ namespace gui {
     using box::box;
 
     void draw(draw_context * ctx, const rect & r) const override {
+      const auto rm = r - margin();
       for (const auto & c : children()) {
-        c->draw(ctx, r);
+        c->draw(ctx, rm);
       }
     }
 
     [[nodiscard]] size min_size() const override {
       constexpr const size init { 0, 0 };
-      return std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
+      const auto res = std::accumulate(children().begin(), children().end(), init, [](size res, auto & w) {
         auto ms = w->min_size();
         return size { std::max(res.w, ms.w), std::max(res.h, ms.h) };
       });
+      return res + margin() * 2;
     }
   };
 }
