@@ -36,7 +36,7 @@ sprite_set sprite_set::load(const m4c0::native_handles * np, const char * filena
   tiles.width = has_tiles ? h.height : h.width;
   tiles.height = h.height;
   tiles.pitch = h.width;
-  tiles.data.reserve(h.width * h.height * sizeof(pixel_t));
+  tiles.data.resize(h.width * h.height * sizeof(pixel_t));
 
   const auto data = res->span<pixel>(sizeof(header) + static_cast<std::ptrdiff_t>(h.id_length));
   for (auto p = 0, y = h.height - 1; y >= 0; y--) {
