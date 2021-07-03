@@ -566,97 +566,101 @@ public:
     make_child<gui::slider>(id, value, min, max);
   }
 };
-class screen {
-  static void create_left_menu(unsigned & id, gui::box * parent) {
-    auto * res = parent->make_child<gui::vbox>();
-    res->make_child<gui::label>("GENERATOR");
-    res->make_child<gui::button>(++id, "PICKUP/COIN", do_pickup_coin);
-    res->make_child<gui::button>(++id, "LASER/SHOOT", do_laser_shoot);
-    res->make_child<gui::button>(++id, "EXPLOSION", do_explosion);
-    res->make_child<gui::button>(++id, "POWERUP", do_powerup);
-    res->make_child<gui::button>(++id, "HIT/HURT", do_hit_hurt);
-    res->make_child<gui::button>(++id, "JUMP", do_jump);
-    res->make_child<gui::button>(++id, "BLIP/SELECT", do_blip_select);
-    res->make_child<gui::button>(++id, "MUTATE", do_mutate);
-    res->make_child<gui::button>(++id, "RANDOMIZE", do_randomize);
+class left_menu : public gui::vbox {
+public:
+  explicit left_menu(unsigned & id) : vbox() {
+    make_child<gui::label>("GENERATOR");
+    make_child<gui::button>(++id, "PICKUP/COIN", do_pickup_coin);
+    make_child<gui::button>(++id, "LASER/SHOOT", do_laser_shoot);
+    make_child<gui::button>(++id, "EXPLOSION", do_explosion);
+    make_child<gui::button>(++id, "POWERUP", do_powerup);
+    make_child<gui::button>(++id, "HIT/HURT", do_hit_hurt);
+    make_child<gui::button>(++id, "JUMP", do_jump);
+    make_child<gui::button>(++id, "BLIP/SELECT", do_blip_select);
+    make_child<gui::button>(++id, "MUTATE", do_mutate);
+    make_child<gui::button>(++id, "RANDOMIZE", do_randomize);
   }
-
-  static void create_wave_btns(unsigned & id, gui::box * parent) {
-    auto * res = parent->make_child<gui::hbox>();
-    res->make_child<gui::button>(++id, "SQUAREWAVE", do_set_wave<0>, wave_type == 0);
-    res->make_child<gui::button>(++id, "SAWTOOTH", do_set_wave<1>, wave_type == 1);
-    res->make_child<gui::button>(++id, "SINEWAVE", do_set_wave<2>, wave_type == 2);
-    res->make_child<gui::button>(++id, "NOISE", do_set_wave<3>, wave_type == 3);
+};
+class wave_btns : public gui::hbox {
+public:
+  explicit wave_btns(unsigned & id) : hbox() {
+    make_child<gui::button>(++id, "SQUAREWAVE", do_set_wave<0>, wave_type == 0);
+    make_child<gui::button>(++id, "SAWTOOTH", do_set_wave<1>, wave_type == 1);
+    make_child<gui::button>(++id, "SINEWAVE", do_set_wave<2>, wave_type == 2);
+    make_child<gui::button>(++id, "NOISE", do_set_wave<3>, wave_type == 3);
   }
+};
+class sliders : public gui::vbox {
+public:
+  explicit sliders(unsigned & id) : vbox() {
+    make_child<labeled_slider>(++id, "ATTACK TIME", &p.m_env_attack, 0, 1);
+    make_child<labeled_slider>(++id, "SUSTAIN TIME", &p.m_env_sustain, 0, 1);
+    make_child<labeled_slider>(++id, "SUSTAIN PUNCH", &p.m_env_punch, 0, 1);
+    make_child<labeled_slider>(++id, "DECAY TIME", &p.m_env_decay, 0, 1);
 
-  static void create_sliders(unsigned & id, gui::box * parent) {
-    auto * res = parent->make_child<gui::vbox>();
-    res->make_child<labeled_slider>(++id, "ATTACK TIME", &p.m_env_attack, 0, 1);
-    res->make_child<labeled_slider>(++id, "SUSTAIN TIME", &p.m_env_sustain, 0, 1);
-    res->make_child<labeled_slider>(++id, "SUSTAIN PUNCH", &p.m_env_punch, 0, 1);
-    res->make_child<labeled_slider>(++id, "DECAY TIME", &p.m_env_decay, 0, 1);
+    make_child<labeled_slider>(++id, "START FREQUENCY", &p.m_base_freq, 0, 1);
+    make_child<labeled_slider>(++id, "MIN FREQUENCY", &p.m_freq_limit, 0, 1);
+    make_child<labeled_slider>(++id, "SLIDE", &p.m_freq_ramp, -1, 1);
+    make_child<labeled_slider>(++id, "DELTA SLIDE", &p.m_freq_dramp, -1, 1);
 
-    res->make_child<labeled_slider>(++id, "START FREQUENCY", &p.m_base_freq, 0, 1);
-    res->make_child<labeled_slider>(++id, "MIN FREQUENCY", &p.m_freq_limit, 0, 1);
-    res->make_child<labeled_slider>(++id, "SLIDE", &p.m_freq_ramp, -1, 1);
-    res->make_child<labeled_slider>(++id, "DELTA SLIDE", &p.m_freq_dramp, -1, 1);
+    make_child<labeled_slider>(++id, "VIBRATO DEPTH", &p.m_vib_strength, 0, 1);
+    make_child<labeled_slider>(++id, "VIBRATO SPEED", &p.m_vib_speed, 0, 1);
 
-    res->make_child<labeled_slider>(++id, "VIBRATO DEPTH", &p.m_vib_strength, 0, 1);
-    res->make_child<labeled_slider>(++id, "VIBRATO SPEED", &p.m_vib_speed, 0, 1);
+    make_child<labeled_slider>(++id, "CHANGE AMOUNT", &p.m_arp_mod, -1, 1);
+    make_child<labeled_slider>(++id, "CHANGE SPEED", &p.m_arp_speed, 0, 1);
 
-    res->make_child<labeled_slider>(++id, "CHANGE AMOUNT", &p.m_arp_mod, -1, 1);
-    res->make_child<labeled_slider>(++id, "CHANGE SPEED", &p.m_arp_speed, 0, 1);
+    make_child<labeled_slider>(++id, "SQUARE DUTY", &p.m_duty, 0, 1);
+    make_child<labeled_slider>(++id, "DUTY SWEEP", &p.m_duty_ramp, -1, 1);
 
-    res->make_child<labeled_slider>(++id, "SQUARE DUTY", &p.m_duty, 0, 1);
-    res->make_child<labeled_slider>(++id, "DUTY SWEEP", &p.m_duty_ramp, -1, 1);
+    make_child<labeled_slider>(++id, "REPEAT SPEED", &p.m_repeat_speed, 0, 1);
 
-    res->make_child<labeled_slider>(++id, "REPEAT SPEED", &p.m_repeat_speed, 0, 1);
+    make_child<labeled_slider>(++id, "PHASER OFFSET", &p.m_pha_offset, -1, 1);
+    make_child<labeled_slider>(++id, "PHASER SWEEP", &p.m_pha_ramp, -1, 1);
 
-    res->make_child<labeled_slider>(++id, "PHASER OFFSET", &p.m_pha_offset, -1, 1);
-    res->make_child<labeled_slider>(++id, "PHASER SWEEP", &p.m_pha_ramp, -1, 1);
-
-    res->make_child<labeled_slider>(++id, "LP FILTER CUTOFF", &p.m_lpf_freq, 0, 1);
-    res->make_child<labeled_slider>(++id, "LP FILTER CUTOFF SWEEP", &p.m_lpf_ramp, -1, 1);
-    res->make_child<labeled_slider>(++id, "LP FILTER RESONANCE", &p.m_lpf_resonance, 0, 1);
-    res->make_child<labeled_slider>(++id, "HP FILTER CUTOFF", &p.m_hpf_freq, 0, 1);
-    res->make_child<labeled_slider>(++id, "HP FILTER SWEEP", &p.m_hpf_ramp, -1, 1);
+    make_child<labeled_slider>(++id, "LP FILTER CUTOFF", &p.m_lpf_freq, 0, 1);
+    make_child<labeled_slider>(++id, "LP FILTER CUTOFF SWEEP", &p.m_lpf_ramp, -1, 1);
+    make_child<labeled_slider>(++id, "LP FILTER RESONANCE", &p.m_lpf_resonance, 0, 1);
+    make_child<labeled_slider>(++id, "HP FILTER CUTOFF", &p.m_hpf_freq, 0, 1);
+    make_child<labeled_slider>(++id, "HP FILTER SWEEP", &p.m_hpf_ramp, -1, 1);
   }
-
-  static void create_br_stuff(unsigned & id, gui::box * parent) {
-    auto * res = parent->make_child<gui::vbox>();
-    res->make_child<gui::label>("VOLUME");
-    res->make_child<gui::slider>(++id, &sound_vol, 0, 1);
-    res->make_child<gui::button>(++id, "PLAY SOUND", PlaySample);
-    res->make_child<gui::button>(++id, "LOAD SOUND", do_load_sound);
-    res->make_child<gui::button>(++id, "SAVE SOUND", do_save_sound);
-    res->make_child<gui::button>(++id, "EXPORT .WAV", do_export);
+};
+class action_btns : public gui::vbox {
+public:
+  explicit action_btns(unsigned & id) : vbox() {
+    make_child<gui::label>("VOLUME");
+    make_child<gui::slider>(++id, &sound_vol, 0, 1);
+    make_child<gui::button>(++id, "PLAY SOUND", PlaySample);
+    make_child<gui::button>(++id, "LOAD SOUND", do_load_sound);
+    make_child<gui::button>(++id, "SAVE SOUND", do_save_sound);
+    make_child<gui::button>(++id, "EXPORT .WAV", do_export);
 
     static constexpr const auto str_max_len = 10;
     static std::array<char, str_max_len> wav_freq_str;
     sprintf(wav_freq_str.data(), "%i HZ", wav_freq); // NOLINT
-    res->make_child<gui::button>(++id, wav_freq_str.data(), do_freq_change);
+    make_child<gui::button>(++id, wav_freq_str.data(), do_freq_change);
 
     static std::array<char, str_max_len> wav_bits_str;
     sprintf(wav_bits_str.data(), "%i-BIT", wav_bits); // NOLINT
-    res->make_child<gui::button>(++id, wav_bits_str.data(), do_bit_change);
+    make_child<gui::button>(++id, wav_bits_str.data(), do_bit_change);
   }
-
+};
+class screen {
   static void create_bottom_stuff(unsigned & id, gui::box * parent) {
     auto * res = parent->make_child<gui::hbox>(true);
-    create_sliders(id, res);
-    create_br_stuff(id, res);
+    res->make_child<sliders>(id);
+    res->make_child<action_btns>(id);
   }
 
   static void create_right_stuff(unsigned & id, gui::box * parent) {
     auto * res = parent->make_child<gui::vbox>();
     res->make_child<gui::label>("MANUAL SETTINGS");
-    create_wave_btns(id, res);
+    res->make_child<wave_btns>(id);
     create_bottom_stuff(id, res);
   }
 
   static void create_stuff(unsigned & id, gui::box * parent) {
     auto * res = parent->make_child<gui::hbox>();
-    create_left_menu(id, res);
+    res->make_child<left_menu>(id);
     create_right_stuff(id, res);
   }
 
