@@ -10,6 +10,8 @@
 #include "m4c0.hpp"
 #include "m4c0/log.hpp"
 #include "m4c0/native_handles.hpp"
+#include "m4c0/riff/builder.hpp"
+#include "m4c0/riff/ostr_writer.hpp"
 #include "parameters.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
@@ -22,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 
 #define rnd(n) (rand() % (n + 1))
 
@@ -238,87 +241,75 @@ public:
   }
 };
 
-void wav_file_write_sample(FILE * output, float sample) {
+static constexpr auto final_output(float sample) {
   constexpr auto arbitrary_gain = 4.0F;
-  auto ssample = sound::norm(sample * arbitrary_gain); // arbitrary gain to get reasonable output volume...
-
-  if (wav_bits == 16) {
-    constexpr const auto threshold = 32000; // TODO: Why not 32767?
-    auto isample = static_cast<std::int16_t>(ssample * threshold);
-    fwrite(&isample, 1, 2, output);
-  } else {
-    auto isample = static_cast<unsigned char>(ssample * 127 + 128);
-    fwrite(&isample, 1, 1, output);
-  }
+  return sound::norm(sample * arbitrary_gain); // arbitrary gain to get reasonable output volume...
 }
-void wav_file_next_sample(FILE * output) {
+
+template<class Tp = std::int16_t>
+static constexpr auto int_output(float sample) {
+  constexpr const auto threshold = 32000; // TODO: Why not 32767?
+  return static_cast<std::int16_t>(final_output(sample) * threshold);
+}
+template<>
+constexpr auto int_output<unsigned char>(float sample) {
+  constexpr const auto threshold = 127;
+  return static_cast<unsigned char>(final_output(sample) * threshold + threshold);
+}
+
+template<class Tp>
+void wav_file_next_sample(std::vector<Tp> & buffer) {
   std::array<float, 2> data {};
   SynthSample(2, data.data());
 
   if (wav_freq == 44100) {
-    wav_file_write_sample(output, data.at(0));
-    wav_file_write_sample(output, data.at(1));
+    buffer.push_back(int_output<Tp>(data.at(0)));
+    buffer.push_back(int_output<Tp>(data.at(1)));
   } else {
-    auto sample = (data.at(0) + data.at(1)) / 2;
-    wav_file_write_sample(output, sample);
+    buffer.push_back(int_output<Tp>((data.at(0) + data.at(1)) / 2));
   }
 }
-bool ExportWAV(char * filename) {
-  FILE * foutput = fopen(filename, "wb");
-  if (!foutput) return false;
-  // write wav header
-  char string[32];
-  unsigned int dword = 0;
-  unsigned short word = 0;
-  fwrite("RIFF", 4, 1, foutput); // "RIFF"
-  dword = 0;
-  fwrite(&dword, 1, 4, foutput); // remaining file size
-  auto riff_start = ftell(foutput);
 
-  fwrite("WAVE", 4, 1, foutput); // "WAVE"
+template<class Tp>
+static void wav_gen(const char * filename) {
+  constexpr const auto bits = 8;
+  struct wav_fmt {
+    using u16 = std::uint16_t;
+    using u32 = std::uint32_t;
 
-  fwrite("fmt ", 4, 1, foutput); // "fmt "
-  dword = 16;
-  fwrite(&dword, 1, 4, foutput); // chunk size
-  word = 1;
-  fwrite(&word, 1, 2, foutput); // compression code
-  word = 1;
-  fwrite(&word, 1, 2, foutput); // channels
-  dword = wav_freq;
-  fwrite(&dword, 1, 4, foutput); // sample rate
-  dword = wav_freq * wav_bits / 8;
-  fwrite(&dword, 1, 4, foutput); // bytes/sec
-  word = wav_bits / 8;
-  fwrite(&word, 1, 2, foutput); // block align
-  word = wav_bits;
-  fwrite(&word, 1, 2, foutput); // bits per sample
+    u16 compression_code = 1; // PCM
+    u16 channels = 1;         // Mono
+    u32 frequency = wav_freq;
+    u32 sample_rate = wav_freq * wav_bits / bits;
+    u16 block_align = wav_bits / bits;
+    u16 bits_per_sample = wav_bits;
+  } fmt;
 
-  fwrite("data", 4, 1, foutput); // "data"
-  dword = 0;
-  fwrite(&dword, 1, 4, foutput); // chunk size
-  auto data_start = ftell(foutput);
+  std::vector<Tp> data {};
+  data.reserve(fmt.sample_rate);
 
   // write sample data
   mute_stream = true;
   PlaySample();
   while (playing_sample) {
-    wav_file_next_sample(foutput);
+    wav_file_next_sample(data);
   }
   mute_stream = false;
 
-  auto data_end = ftell(foutput);
-  auto riff_end = ftell(foutput);
+  using namespace m4c0::riff;
 
-  // seek back to header and write size info
-  fseek(foutput, riff_start - 4, SEEK_SET);
-  dword = riff_end - riff_start;
-  fwrite(&dword, 1, 4, foutput); // remaining file size
+  std::ofstream ofs { filename, std::ios::binary };
+  ostr_writer w { ofs };
 
-  fseek(foutput, data_start - 4, SEEK_SET);
-  dword = data_end - data_start;
-  fwrite(&dword, 1, 4, foutput); // chunk size (data)
+  riff_builder(&w, 'EVAW').write(' tmf', fmt).write('atad', data.data(), data.size() * sizeof(Tp));
+}
 
-  fclose(foutput);
+bool ExportWAV(char * filename) {
+  if (wav_bits == 16) {
+    wav_gen<std::uint16_t>(filename);
+  } else {
+    wav_gen<unsigned char>(filename);
+  }
 
   return true;
 }

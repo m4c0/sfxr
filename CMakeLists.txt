@@ -21,6 +21,7 @@ target_link_libraries(sfxr PRIVATE
   m4c0::audio
   m4c0::casein
   m4c0::fuji
+  m4c0::riff
   m4c0::vulkan)
 set_target_properties(sfxr PROPERTIES
   MACOSX_BUNDLE_BUNDLE_NAME "SFXR"
